@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 export * from './api';
 export * from './forwarder';
 export * from './logging';
@@ -26,7 +27,7 @@ export enum NgCliAnalyticsDimensions {
   RamInGigabytes = 3,
   NodeVersion = 4,
   NgAddCollection = 6,
-  NgIvyEnabled = 8,
+  AotEnabled = 8,
   BuildErrors = 20,
 }
 
@@ -56,7 +57,7 @@ export const NgCliAnalyticsDimensionsFlagInfo: { [name: string]: [string, string
   RamInGigabytes: ['RAM (In GB)', 'number'],
   NodeVersion: ['Node Version', 'number'],
   NgAddCollection: ['--collection', 'string'],
-  NgIvyEnabled: ['Ivy Enabled', 'boolean'],
+  AotEnabled: ['AOT Enabled', 'boolean'],
   BuildErrors: ['Build Errors (comma separated)', 'string'],
 };
 

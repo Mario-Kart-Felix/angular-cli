@@ -1,14 +1,18 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { Architect, Target } from '@angular-devkit/architect';
 import { WorkspaceNodeModulesArchitectHost } from '@angular-devkit/architect/node';
 import { json, schema, tags } from '@angular-devkit/core';
+import { existsSync } from 'fs';
+import * as path from 'path';
 import { parseJsonSchemaToOptions } from '../utilities/json-schema';
+import { getPackageManager } from '../utilities/package-manager';
 import { isPackageNameSafeForAnalytics } from './analytics';
 import { BaseCommandOptions, Command } from './command';
 import { Arguments, Option } from './interface';
@@ -22,12 +26,12 @@ export interface ArchitectCommandOptions extends BaseCommandOptions {
 }
 
 export abstract class ArchitectCommand<
-  T extends ArchitectCommandOptions = ArchitectCommandOptions
+  T extends ArchitectCommandOptions = ArchitectCommandOptions,
 > extends Command<T> {
   protected _architect!: Architect;
   protected _architectHost!: WorkspaceNodeModulesArchitectHost;
   protected _registry!: json.schema.SchemaRegistry;
-  protected readonly useReportAnalytics = false;
+  protected override readonly useReportAnalytics = false;
 
   // If this command supports running multiple targets.
   protected multiTarget = false;
@@ -35,10 +39,27 @@ export abstract class ArchitectCommand<
   target: string | undefined;
   missingTargetError: string | undefined;
 
-  public async initialize(options: T & Arguments): Promise<number | void> {
+  protected async onMissingTarget(projectName?: string): Promise<void | number> {
+    if (this.missingTargetError) {
+      this.logger.fatal(this.missingTargetError);
+
+      return 1;
+    }
+
+    if (projectName) {
+      this.logger.fatal(`Project '${projectName}' does not support the '${this.target}' target.`);
+    } else {
+      this.logger.fatal(`No projects support the '${this.target}' target.`);
+    }
+
+    return 1;
+  }
+
+  // eslint-disable-next-line max-lines-per-function
+  public override async initialize(options: T & Arguments): Promise<number | void> {
     this._registry = new json.schema.CoreSchemaRegistry();
     this._registry.addPostTransform(json.schema.transforms.addUndefinedDefaults);
-    this._registry.useXDeprecatedProvider(msg => this.logger.warn(msg));
+    this._registry.useXDeprecatedProvider((msg) => this.logger.warn(msg));
 
     if (!this.workspace) {
       this.logger.fatal('A workspace is required for this command.');
@@ -46,7 +67,10 @@ export abstract class ArchitectCommand<
       return 1;
     }
 
-    this._architectHost = new WorkspaceNodeModulesArchitectHost(this.workspace, this.workspace.basePath);
+    this._architectHost = new WorkspaceNodeModulesArchitectHost(
+      this.workspace,
+      this.workspace.basePath,
+    );
     this._architect = new Architect(this._architectHost, this._registry);
 
     if (!this.target) {
@@ -80,17 +104,12 @@ export abstract class ArchitectCommand<
       }
     }
 
-    if (targetProjectNames.length === 0) {
-      this.logger.fatal(this.missingTargetError || `No projects support the '${this.target}' target.`);
-
-      return 1;
+    if (projectName && !targetProjectNames.includes(projectName)) {
+      return await this.onMissingTarget(projectName);
     }
 
-    if (projectName && !targetProjectNames.includes(projectName)) {
-      this.logger.fatal(this.missingTargetError ||
-        `Project '${projectName}' does not support the '${this.target}' target.`);
-
-      return 1;
+    if (targetProjectNames.length === 0) {
+      return await this.onMissingTarget();
     }
 
     if (!projectName && commandLeftovers && commandLeftovers.length > 0) {
@@ -107,7 +126,19 @@ export abstract class ArchitectCommand<
           builderNames.add(builderName);
         }
 
-        const builderDesc = await this._architectHost.resolveBuilder(builderName);
+        let builderDesc;
+        try {
+          builderDesc = await this._architectHost.resolveBuilder(builderName);
+        } catch (e) {
+          if (e.code === 'MODULE_NOT_FOUND') {
+            await this.warnOnMissingNodeModules(this.workspace.basePath);
+            this.logger.fatal(`Could not find the '${builderName}' builder's node package.`);
+
+            return 1;
+          }
+          throw e;
+        }
+
         const optionDefs = await parseJsonSchemaToOptions(
           this._registry,
           builderDesc.optionSchema as json.JsonObject,
@@ -116,7 +147,9 @@ export abstract class ArchitectCommand<
         const builderLeftovers = parsedOptions['--'] || [];
         leftoverMap.set(name, { optionDefs, parsedOptions });
 
-        potentialProjectNames = new Set(builderLeftovers.filter(x => potentialProjectNames.has(x)));
+        potentialProjectNames = new Set(
+          builderLeftovers.filter((x) => potentialProjectNames.has(x)),
+        );
       }
 
       if (potentialProjectNames.size === 1) {
@@ -169,7 +202,9 @@ export abstract class ArchitectCommand<
         // This is a special case where we just return.
         return;
       } else {
-        this.logger.fatal(this.missingTargetError || 'Cannot determine project or target for command.');
+        this.logger.fatal(
+          this.missingTargetError || 'Cannot determine project or target for command.',
+        );
 
         return 1;
       }
@@ -181,7 +216,19 @@ export abstract class ArchitectCommand<
       project: projectName || (targetProjectNames.length > 0 ? targetProjectNames[0] : ''),
       target: this.target,
     });
-    const builderDesc = await this._architectHost.resolveBuilder(builderConf);
+
+    let builderDesc;
+    try {
+      builderDesc = await this._architectHost.resolveBuilder(builderConf);
+    } catch (e) {
+      if (e.code === 'MODULE_NOT_FOUND') {
+        await this.warnOnMissingNodeModules(this.workspace.basePath);
+        this.logger.fatal(`Could not find the '${builderConf}' builder's node package.`);
+
+        return 1;
+      }
+      throw e;
+    }
 
     this.description.options.push(
       ...(await parseJsonSchemaToOptions(
@@ -198,19 +245,60 @@ export abstract class ArchitectCommand<
     }
   }
 
+  private async warnOnMissingNodeModules(basePath: string): Promise<void> {
+    // Check for a `node_modules` directory (npm, yarn non-PnP, etc.)
+    if (existsSync(path.resolve(basePath, 'node_modules'))) {
+      return;
+    }
+
+    // Check for yarn PnP files
+    if (
+      existsSync(path.resolve(basePath, '.pnp.js')) ||
+      existsSync(path.resolve(basePath, '.pnp.cjs')) ||
+      existsSync(path.resolve(basePath, '.pnp.mjs'))
+    ) {
+      return;
+    }
+
+    const packageManager = await getPackageManager(basePath);
+    let installSuggestion = 'Try installing with ';
+    switch (packageManager) {
+      case 'npm':
+        installSuggestion += `'npm install'`;
+        break;
+      case 'yarn':
+        installSuggestion += `'yarn'`;
+        break;
+      default:
+        installSuggestion += `the project's package manager`;
+        break;
+    }
+
+    this.logger.warn(`Node packages may not be installed. ${installSuggestion}.`);
+  }
+
   async run(options: ArchitectCommandOptions & Arguments) {
     return await this.runArchitectTarget(options);
   }
 
-  protected async runSingleTarget(
-    target: Target,
-    targetOptions: string[],
-  ) {
+  protected async runSingleTarget(target: Target, targetOptions: string[]) {
     // We need to build the builderSpec twice because architect does not understand
     // overrides separately (getting the configuration builds the whole project, including
     // overrides).
     const builderConf = await this._architectHost.getBuilderNameForTarget(target);
-    const builderDesc = await this._architectHost.resolveBuilder(builderConf);
+    let builderDesc;
+    try {
+      builderDesc = await this._architectHost.resolveBuilder(builderConf);
+    } catch (e) {
+      if (e.code === 'MODULE_NOT_FOUND') {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        await this.warnOnMissingNodeModules(this.workspace!.basePath);
+        this.logger.fatal(`Could not find the '${builderConf}' builder's node package.`);
+
+        return 1;
+      }
+      throw e;
+    }
     const targetOptionArray = await parseJsonSchemaToOptions(
       this._registry,
       builderDesc.optionSchema as json.JsonObject,
@@ -221,7 +309,7 @@ export abstract class ArchitectCommand<
       typeof builderDesc.optionSchema === 'object' && builderDesc.optionSchema.additionalProperties;
 
     if (overrides['--'] && !allowAdditionalProperties) {
-      (overrides['--'] || []).forEach(additional => {
+      (overrides['--'] || []).forEach((additional) => {
         this.logger.fatal(`Unknown option: '${additional.split(/=/)[0]}'`);
       });
 
@@ -229,7 +317,7 @@ export abstract class ArchitectCommand<
     }
 
     await this.reportAnalytics([this.description.name], {
-      ...await this._architectHost.getOptionsForTarget(target) as unknown as T,
+      ...((await this._architectHost.getOptionsForTarget(target)) as unknown as T),
       ...overrides,
     });
 
@@ -260,10 +348,7 @@ export abstract class ArchitectCommand<
         // Running them in parallel would jumble the log messages.
         let result = 0;
         for (const project of this.getProjectNamesByTarget(this.target)) {
-          result |= await this.runSingleTarget(
-            { ...targetSpec, project } as Target,
-            extra,
-          );
+          result |= await this.runSingleTarget({ ...targetSpec, project } as Target, extra);
         }
 
         return result;
@@ -275,7 +360,7 @@ export abstract class ArchitectCommand<
         const newErrors: schema.SchemaValidatorError[] = [];
         for (const schemaError of e.errors) {
           if (schemaError.keyword === 'additionalProperties') {
-            const unknownProperty = schemaError.params.additionalProperty;
+            const unknownProperty = schemaError.params?.additionalProperty;
             if (unknownProperty in options) {
               const dashes = unknownProperty.length === 1 ? '-' : '--';
               this.logger.fatal(`Unknown option: '${dashes}${unknownProperty}'`);
@@ -298,7 +383,7 @@ export abstract class ArchitectCommand<
 
   private getProjectNamesByTarget(targetName: string): string[] {
     const allProjectsForTargetName: string[] = [];
-    // tslint:disable-next-line: no-non-null-assertion
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     for (const [name, project] of this.workspace!.projects) {
       if (project.targets.has(targetName)) {
         allProjectsForTargetName.push(name);
@@ -311,7 +396,7 @@ export abstract class ArchitectCommand<
     } else {
       // For single target commands, we try the default project first,
       // then the full list if it has a single project, then error out.
-      // tslint:disable-next-line: no-non-null-assertion
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const maybeDefaultProject = this.workspace!.extensions['defaultProject'] as string;
       if (maybeDefaultProject && allProjectsForTargetName.includes(maybeDefaultProject)) {
         return [maybeDefaultProject];
@@ -338,14 +423,24 @@ export abstract class ArchitectCommand<
       project = commandOptions.project;
       target = this.target;
       if (commandOptions.prod) {
+        const defaultConfig =
+          project &&
+          target &&
+          this.workspace?.projects.get(project)?.targets.get(target)?.defaultConfiguration;
+
+        this.logger.warn(
+          defaultConfig === 'production'
+            ? 'Option "--prod" is deprecated: No need to use this option as this builder defaults to configuration "production".'
+            : 'Option "--prod" is deprecated: Use "--configuration production" instead.',
+        );
         // The --prod flag will always be the first configuration, available to be overwritten
         // by following configurations.
-        this.logger.warn('Option "--prod" is deprecated: Use "--configuration production" instead.');
         configuration = 'production';
       }
       if (commandOptions.configuration) {
-        configuration =
-          `${configuration ? `${configuration},` : ''}${commandOptions.configuration}`;
+        configuration = `${configuration ? `${configuration},` : ''}${
+          commandOptions.configuration
+        }`;
       }
     }
 

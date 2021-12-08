@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 const { readFileSync, writeFileSync, mkdirSync } = require('fs');
 const { resolve, dirname } = require('path');
 
@@ -23,8 +24,8 @@ function generate(inPath, outPath) {
       const definitionKey = value
         .replace(/(\.json|src)/g, '')
         .split(/\\|\/|_|-|\./)
-        .filter(p => !!p)
-        .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+        .filter((p) => !!p)
+        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
         .join('');
 
       const nestedSchemaPath = resolve(dirname(inPath), value);
@@ -55,12 +56,12 @@ function generate(inPath, outPath) {
 
     return key === ''
       ? {
-        ...value,
-        definitions: {
-          ...value.definitions,
-          ...nestedDefinitions,
+          ...value,
+          definitions: {
+            ...value.definitions,
+            ...nestedDefinitions,
+          },
         }
-      }
       : value;
   });
 
@@ -84,7 +85,7 @@ if (require.main === module) {
     generate(inPath, outPath);
   } catch (error) {
     console.error('An error happened:');
-    console.error(err);
+    console.error(error);
     process.exit(127);
   }
 }

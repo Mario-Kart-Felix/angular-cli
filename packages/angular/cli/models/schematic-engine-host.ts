@@ -1,14 +1,16 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { RuleFactory, SchematicsException, Tree } from '@angular-devkit/schematics';
 import { NodeModulesEngineHost } from '@angular-devkit/schematics/tools';
 import { readFileSync } from 'fs';
 import { parse as parseJson } from 'jsonc-parser';
+import nodeModule from 'module';
 import { dirname, resolve } from 'path';
 import { Script } from 'vm';
 
@@ -32,19 +34,24 @@ function shouldWrapSchematic(schematicFile: string): boolean {
     }
   }
 
+  const normalizedSchematicFile = schematicFile.replace(/\\/g, '/');
   // Never wrap the internal update schematic when executed directly
   // It communicates with the update command via `global`
-  if (/[\/\\]node_modules[\/\\]@angular[\/\\]cli[\/\\]/.test(schematicFile)) {
+  // But we still want to redirect schematics located in `@angular/cli/node_modules`.
+  if (
+    normalizedSchematicFile.includes('node_modules/@angular/cli/') &&
+    !normalizedSchematicFile.includes('node_modules/@angular/cli/node_modules/')
+  ) {
     return false;
   }
 
   // Default is only first-party Angular schematic packages
   // Angular schematics are safe to use in the wrapped VM context
-  return /[\/\\]node_modules[\/\\]@(?:angular|schematics|nguniversal)[\/\\]/.test(schematicFile);
+  return /\/node_modules\/@(?:angular|schematics|nguniversal)\//.test(normalizedSchematicFile);
 }
 
 export class SchematicEngineHost extends NodeModulesEngineHost {
-  protected _resolveReferenceString(refString: string, parentPath: string) {
+  protected override _resolveReferenceString(refString: string, parentPath: string) {
     const [path, name] = refString.split('#', 2);
     // Mimic behavior of ExportStringRef class used in default behavior
     const fullPath = path[0] === '.' ? resolve(parentPath ?? process.cwd(), path) : path;
@@ -114,26 +121,35 @@ function wrap(
   moduleCache: Map<string, unknown>,
   exportName?: string,
 ): () => unknown {
-  const { createRequire, createRequireFromPath } = require('module');
-  // Node.js 10.x does not support `createRequire` so fallback to `createRequireFromPath`
-  // `createRequireFromPath` is deprecated in 12+ and can be removed once 10.x support is removed
-  const scopedRequire = createRequire?.(schematicFile) || createRequireFromPath(schematicFile);
+  const hostRequire = nodeModule.createRequire(__filename);
+  const schematicRequire = nodeModule.createRequire(schematicFile);
 
   const customRequire = function (id: string) {
     if (legacyModules[id]) {
       // Provide compatibility modules for older versions of @angular/cdk
       return legacyModules[id];
     } else if (id.startsWith('@angular-devkit/') || id.startsWith('@schematics/')) {
-      // Resolve from inside the `@angular/cli` project
-      const packagePath = require.resolve(id);
+      // Files should not redirect `@angular/core` and instead use the direct
+      // dependency if available. This allows old major version migrations to continue to function
+      // even though the latest major version may have breaking changes in `@angular/core`.
+      if (id.startsWith('@angular-devkit/core')) {
+        try {
+          return schematicRequire(id);
+        } catch (e) {
+          if (e.code !== 'MODULE_NOT_FOUND') {
+            throw e;
+          }
+        }
+      }
 
-      return require(packagePath);
+      // Resolve from inside the `@angular/cli` project
+      return hostRequire(id);
     } else if (id.startsWith('.') || id.startsWith('@angular/cdk')) {
       // Wrap relative files inside the schematic collection
       // Also wrap `@angular/cdk`, it contains helper utilities that import core schematic packages
 
       // Resolve from the original file
-      const modulePath = scopedRequire.resolve(id);
+      const modulePath = schematicRequire.resolve(id);
 
       // Use cached module if available
       const cachedModule = moduleCache.get(modulePath);
@@ -143,9 +159,7 @@ function wrap(
 
       // Do not wrap vendored third-party packages or JSON files
       if (
-        !/[\/\\]node_modules[\/\\]@schematics[\/\\]angular[\/\\]third_party[\/\\]/.test(
-          modulePath,
-        ) &&
+        !/[/\\]node_modules[/\\]@schematics[/\\]angular[/\\]third_party[/\\]/.test(modulePath) &&
         !modulePath.endsWith('.json')
       ) {
         // Wrap module and save in cache
@@ -157,7 +171,7 @@ function wrap(
     }
 
     // All others are required directly from the original file
-    return scopedRequire(id);
+    return schematicRequire(id);
   };
 
   // Setup a wrapper function to capture the module's exports

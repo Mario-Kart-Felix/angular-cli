@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { logging, tags } from '@angular-devkit/core';
-import { getOptions } from 'loader-utils';
 import { extname } from 'path';
 
 export interface SingleTestTransformLoaderOptions {
@@ -30,13 +30,15 @@ export const SingleTestTransformLoader = __filename;
  * Then it adds import statements for each file in the files options
  * array to import them directly, and thus run the tests there.
  */
-// tslint:disable-next-line: no-any
-export default function loader(this: any, source: string): string {
-  const { files = [], logger = console } = getOptions(this) as SingleTestTransformLoaderOptions;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function loader(
+  this: import('webpack').LoaderContext<SingleTestTransformLoaderOptions>,
+  source: string,
+): string {
+  const { files = [], logger = console } = this.getOptions();
   // signal the user that expected content is not present.
   if (!source.includes('require.context(')) {
-    logger.error(tags.stripIndent
-      `The 'include' option requires that the 'main' file for tests includes the below line:
+    logger.error(tags.stripIndent`The 'include' option requires that the 'main' file for tests includes the below line:
       const context = require.context('./', true, /\.spec\.ts$/);
       Arguments passed to require.context are not strict and can be changed.`);
 
@@ -44,10 +46,11 @@ export default function loader(this: any, source: string): string {
   }
 
   const targettedImports = files
-    .map(path => `require('./${path.replace('.' + extname(path), '')}');`)
+    .map((path) => `require('./${path.replace('.' + extname(path), '')}');`)
     .join('\n');
 
-  const mockedRequireContext = 'Object.assign(() => { }, { keys: () => [], resolve: () => undefined });\n';
+  const mockedRequireContext =
+    'Object.assign(() => { }, { keys: () => [], resolve: () => undefined });\n';
   source = source.replace(/require\.context\(.*/, mockedRequireContext + targettedImports);
 
   return source;

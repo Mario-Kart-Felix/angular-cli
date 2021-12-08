@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -24,42 +24,39 @@ export {
   SourceMapUnion,
   StylePreprocessorOptions,
   Type,
-} from './browser/schema';
+} from './builders/browser/schema';
 
 export {
   buildWebpackBrowser as executeBrowserBuilder,
   BrowserBuilderOutput,
-} from './browser';
+} from './builders/browser';
 
 export {
   serveWebpackBrowser as executeDevServerBuilder,
   DevServerBuilderOptions,
   DevServerBuilderOutput,
-} from './dev-server';
+} from './builders/dev-server';
 
 export {
   execute as executeExtractI18nBuilder,
   ExtractI18nBuilderOptions,
-} from './extract-i18n';
+} from './builders/extract-i18n';
 
 export {
   execute as executeKarmaBuilder,
   KarmaBuilderOptions,
   KarmaConfigOptions,
-} from './karma';
+} from './builders/karma';
 
 export {
   execute as executeProtractorBuilder,
   ProtractorBuilderOptions,
-} from './protractor';
+} from './builders/protractor';
 
 export {
   execute as executeServerBuilder,
   ServerBuilderOptions,
   ServerBuilderOutput,
-} from './server';
+} from './builders/server';
 
-export {
-  execute as executeNgPackagrBuilder,
-  NgPackagrBuilderOptions,
-} from './ng-packagr';
+export { execute as executeNgPackagrBuilder, NgPackagrBuilderOptions } from './builders/ng-packagr';

@@ -10,6 +10,7 @@ load("//tools:ts_json_schema.bzl", "ts_json_schema")
 # @external_begin
 load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
 load("@build_bazel_rules_nodejs//:index.bzl", "pkg_npm")
+load("@npm//@angular/dev-infra-private/bazel/api-golden:index.bzl", "api_golden_test_npm_package")
 # @external_end
 
 licenses(["notice"])  # MIT
@@ -18,51 +19,47 @@ package(default_visibility = ["//visibility:public"])
 
 ts_json_schema(
     name = "app_shell_schema",
-    src = "src/app-shell/schema.json",
+    src = "src/builders/app-shell/schema.json",
 )
 
 ts_json_schema(
     name = "browser_schema",
-    src = "src/browser/schema.json",
+    src = "src/builders/browser/schema.json",
 )
 
 ts_json_schema(
     name = "dev_server_schema",
-    src = "src/dev-server/schema.json",
+    src = "src/builders/dev-server/schema.json",
 )
 
 ts_json_schema(
     name = "extract_i18n_schema",
-    src = "src/extract-i18n/schema.json",
+    src = "src/builders/extract-i18n/schema.json",
 )
 
 ts_json_schema(
     name = "karma_schema",
-    src = "src/karma/schema.json",
+    src = "src/builders/karma/schema.json",
 )
 
 ts_json_schema(
     name = "protractor_schema",
-    src = "src/protractor/schema.json",
+    src = "src/builders/protractor/schema.json",
 )
 
 ts_json_schema(
     name = "server_schema",
-    src = "src/server/schema.json",
-)
-
-ts_json_schema(
-    name = "tslint_schema",
-    src = "src/tslint/schema.json",
+    src = "src/builders/server/schema.json",
 )
 
 ts_json_schema(
     name = "ng_packagr_schema",
-    src = "src/ng-packagr/schema.json",
+    src = "src/builders/ng-packagr/schema.json",
 )
 
 ts_library(
     name = "build_angular",
+    package_name = "@angular-devkit/build-angular",
     srcs = glob(
         include = [
             "src/**/*.ts",
@@ -76,20 +73,20 @@ ts_library(
             "src/testing/**/*.ts",
         ],
     ) + [
-        "//packages/angular_devkit/build_angular:src/app-shell/schema.ts",
-        "//packages/angular_devkit/build_angular:src/browser/schema.ts",
-        "//packages/angular_devkit/build_angular:src/dev-server/schema.ts",
-        "//packages/angular_devkit/build_angular:src/extract-i18n/schema.ts",
-        "//packages/angular_devkit/build_angular:src/karma/schema.ts",
-        "//packages/angular_devkit/build_angular:src/protractor/schema.ts",
-        "//packages/angular_devkit/build_angular:src/server/schema.ts",
-        "//packages/angular_devkit/build_angular:src/tslint/schema.ts",
-        "//packages/angular_devkit/build_angular:src/ng-packagr/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/app-shell/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/browser/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/dev-server/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/extract-i18n/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/karma/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/protractor/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/server/schema.ts",
+        "//packages/angular_devkit/build_angular:src/builders/ng-packagr/schema.ts",
     ],
     data = glob(
         include = [
             "package.json",
             "builders.json",
+            "esbuild-check.js",
             "src/**/schema.json",
             "src/**/*.js",
             "src/**/*.html",
@@ -99,30 +96,30 @@ ts_library(
     module_root = "src/index.d.ts",
     deps = [
         "//packages/angular_devkit/architect",
-        "//packages/angular_devkit/build_optimizer",
         "//packages/angular_devkit/build_webpack",
         "//packages/angular_devkit/core",
         "//packages/angular_devkit/core/node",
         "//packages/ngtools/webpack",
+        "@npm//@ampproject/remapping",
+        "@npm//@angular/common",
         "@npm//@angular/compiler-cli",
         "@npm//@angular/core",
         "@npm//@angular/localize",
         "@npm//@angular/service-worker",
         "@npm//@babel/core",
+        "@npm//@babel/helper-annotate-as-pure",
+        "@npm//@babel/plugin-proposal-async-generator-functions",
+        "@npm//@babel/plugin-transform-async-to-generator",
         "@npm//@babel/plugin-transform-runtime",
         "@npm//@babel/preset-env",
         "@npm//@babel/runtime",
         "@npm//@babel/template",
         "@npm//@discoveryjs/json-ext",
-        "@npm//@jsdevtools/coverage-istanbul-loader",
         "@npm//@types/babel__core",
         "@npm//@types/babel__template",
         "@npm//@types/browserslist",
         "@npm//@types/cacache",
-        "@npm//@types/caniuse-lite",
         "@npm//@types/copy-webpack-plugin",
-        "@npm//@types/cssnano",
-        "@npm//@types/find-cache-dir",
         "@npm//@types/glob",
         "@npm//@types/inquirer",
         "@npm//@types/karma",
@@ -131,27 +128,27 @@ ts_library(
         "@npm//@types/node",
         "@npm//@types/parse5-html-rewriting-stream",
         "@npm//@types/postcss-preset-env",
-        "@npm//@types/rimraf",
+        "@npm//@types/sass",
         "@npm//@types/semver",
         "@npm//@types/text-table",
         "@npm//@types/webpack-dev-server",
         "@npm//ajv",
         "@npm//ansi-colors",
         "@npm//babel-loader",
+        "@npm//babel-plugin-istanbul",
         "@npm//browserslist",
         "@npm//cacache",
-        "@npm//caniuse-lite",
         "@npm//circular-dependency-plugin",
         "@npm//copy-webpack-plugin",
         "@npm//core-js",
         "@npm//critters",
         "@npm//css-loader",
-        "@npm//cssnano",
-        "@npm//find-cache-dir",
+        "@npm//esbuild",
+        "@npm//esbuild-wasm",
         "@npm//glob",
         "@npm//https-proxy-agent",
         "@npm//inquirer",
-        "@npm//jest-worker",
+        "@npm//jsonc-parser",
         "@npm//karma",
         "@npm//karma-source-map-support",
         "@npm//less",
@@ -164,29 +161,25 @@ ts_library(
         "@npm//open",
         "@npm//ora",
         "@npm//parse5-html-rewriting-stream",
+        "@npm//piscina",
         "@npm//postcss",
         "@npm//postcss-import",
         "@npm//postcss-loader",
         "@npm//postcss-preset-env",
-        "@npm//raw-loader",
         "@npm//regenerator-runtime",
         "@npm//resolve-url-loader",
-        "@npm//rimraf",
         "@npm//rxjs",
         "@npm//sass",
         "@npm//sass-loader",
         "@npm//semver",
-        "@npm//source-map",
         "@npm//source-map-loader",
         "@npm//source-map-support",
-        "@npm//style-loader",
         "@npm//stylus",
         "@npm//stylus-loader",
         "@npm//terser",
-        "@npm//terser-webpack-plugin",
         "@npm//text-table",
         "@npm//tree-kill",
-        "@npm//tslint",
+        "@npm//tslib",
         "@npm//typescript",
         "@npm//webpack",
         "@npm//webpack-dev-middleware",
@@ -203,6 +196,7 @@ ts_library(
         include = [
             "plugins/**/*_spec.ts",
             "src/utils/**/*_spec.ts",
+            "src/babel/**/*_spec.ts",
             "src/angular-cli-files/**/*_spec.ts",
         ],
     ),
@@ -212,6 +206,7 @@ ts_library(
         ":build_angular",
         "//packages/angular_devkit/architect/testing",
         "//packages/angular_devkit/core",
+        "@npm//prettier",
         "@npm//typescript",
         "@npm//webpack",
     ],
@@ -236,6 +231,16 @@ pkg_tar(
     extension = "tar.gz",
     strip_prefix = "./npm_package",
     tags = ["manual"],
+)
+
+api_golden_test_npm_package(
+    name = "build_angular_api",
+    data = [
+        ":npm_package",
+        "//goldens:public-api",
+    ],
+    golden_dir = "angular_cli/goldens/public-api/angular_devkit/build_angular",
+    npm_package = "angular_cli/packages/angular_devkit/build_angular/npm_package",
 )
 # @external_end
 # Large build_angular specs
@@ -292,6 +297,8 @@ LARGE_SPECS = {
     },
     "extract-i18n": {},
     "karma": {
+        "shards": 3,
+        "size": "large",
         "extra_deps": [
             "@npm//karma",
             "@npm//karma-chrome-launcher",
@@ -312,12 +319,6 @@ LARGE_SPECS = {
         "tags": ["no-remote-exec"],
         # NB: multiple shards will compete for port 4200 so limiting to 1
         "shards": 1,
-    },
-    "tslint": {
-        "extra_deps": [
-            "@npm//codelyzer",
-            "@npm//tslint",
-        ],
     },
     "server": {
         "extra_deps": [
@@ -345,7 +346,7 @@ LARGE_SPECS = {
     ts_library(
         name = "build_angular_" + spec + "_test_lib",
         testonly = True,
-        srcs = glob(["src/" + spec + "/**/*_spec.ts"]),
+        srcs = glob(["src/builders/" + spec + "/**/*_spec.ts"]),
         tsconfig = "//:tsconfig-test.json",
         deps = [
             # Dependencies needed to compile and run the specs themselves.

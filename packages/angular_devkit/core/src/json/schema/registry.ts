@@ -1,11 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import Ajv, { ValidateFunction } from 'ajv';
+
+import Ajv, { SchemaObjCxt, ValidateFunction } from 'ajv';
 import ajvAddFormats from 'ajv-formats';
 import * as http from 'http';
 import * as https from 'https';
@@ -14,7 +15,7 @@ import { map } from 'rxjs/operators';
 import * as Url from 'url';
 import { BaseException } from '../../exception/exception';
 import { PartiallyOrderedSet, deepCopy } from '../../utils';
-import { JsonArray, JsonObject, JsonValue, isJsonObject } from '../interface';
+import { JsonArray, JsonObject, JsonValue, isJsonObject } from '../utils';
 import {
   JsonPointer,
   JsonVisitor,
@@ -32,8 +33,9 @@ import { JsonSchema } from './schema';
 import { getTypesOfSchema } from './utility';
 import { visitJson, visitJsonSchema } from './visitor';
 
-export type UriHandler = (uri: string) =>
-  Observable<JsonObject> | Promise<JsonObject> | null | undefined;
+export type UriHandler = (
+  uri: string,
+) => Observable<JsonObject> | Promise<JsonObject> | null | undefined;
 
 export class SchemaValidationException extends BaseException {
   public readonly errors: SchemaValidatorError[];
@@ -61,8 +63,18 @@ export class SchemaValidationException extends BaseException {
 
     const messages = errors.map((err) => {
       let message = `Data path ${JSON.stringify(err.instancePath)} ${err.message}`;
-      if (err.keyword === 'additionalProperties') {
-        message += `(${err.params.additionalProperty})`;
+      if (err.params) {
+        switch (err.keyword) {
+          case 'additionalProperties':
+            message += `(${err.params.additionalProperty})`;
+            break;
+
+          case 'enum':
+            message += `. Allowed values are: ${(err.params.allowedValues as string[] | undefined)
+              ?.map((v) => `"${v}"`)
+              .join(', ')}`;
+            break;
+        }
       }
 
       return message + '.';
@@ -132,7 +144,7 @@ export class CoreSchemaRegistry implements SchemaRegistry {
     return new Promise<JsonObject>((resolve, reject) => {
       const url = new Url.URL(uri);
       const client = url.protocol === 'https:' ? https : http;
-      client.get(url, res => {
+      client.get(url, (res) => {
         if (!res.statusCode || res.statusCode >= 300) {
           // Consume the rest of the data to free memory.
           res.resume();
@@ -140,7 +152,7 @@ export class CoreSchemaRegistry implements SchemaRegistry {
         } else {
           res.setEncoding('utf8');
           let data = '';
-          res.on('data', chunk => {
+          res.on('data', (chunk) => {
             data += chunk;
           });
           res.on('end', () => {
@@ -180,7 +192,7 @@ export class CoreSchemaRegistry implements SchemaRegistry {
   protected _resolver(
     ref: string,
     validate?: ValidateFunction,
-  ): { context?: ValidateFunction, schema?: JsonObject } {
+  ): { context?: ValidateFunction; schema?: JsonObject } {
     if (!validate || !ref) {
       return {};
     }
@@ -223,12 +235,12 @@ export class CoreSchemaRegistry implements SchemaRegistry {
   }
 
   private async _flatten(schema: JsonObject): Promise<JsonObject> {
-    this._replaceDeprecatedSchemaIdKeyword(schema);
     this._ajv.removeSchema(schema);
 
     this._currentCompilationSchemaInfo = undefined;
     const validate = await this._ajv.compileAsync(schema);
 
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 
     function visitor(
@@ -237,14 +249,15 @@ export class CoreSchemaRegistry implements SchemaRegistry {
       parentSchema?: JsonObject | JsonArray,
       index?: string,
     ) {
-      if (current
-        && parentSchema
-        && index
-        && isJsonObject(current)
-        && current.hasOwnProperty('$ref')
-        && typeof current['$ref'] == 'string'
+      if (
+        current &&
+        parentSchema &&
+        index &&
+        isJsonObject(current) &&
+        Object.prototype.hasOwnProperty.call(current, '$ref') &&
+        typeof current['$ref'] == 'string'
       ) {
-        const resolved = self._resolver(current['$ref'] as string, validate);
+        const resolved = self._resolver(current['$ref'], validate);
 
         if (resolved.schema) {
           (parentSchema as JsonObject)[index] = resolved.schema;
@@ -267,17 +280,18 @@ export class CoreSchemaRegistry implements SchemaRegistry {
    */
   compile(schema: JsonSchema): Observable<SchemaValidator> {
     return from(this._compile(schema)).pipe(
-      map(validate => (value, options) => from(validate(value, options))),
+      map((validate) => (value, options) => from(validate(value, options))),
     );
   }
 
-  private async _compile(schema: JsonSchema):
-    Promise<(data: JsonValue, options?: SchemaValidatorOptions) => Promise<SchemaValidatorResult>> {
+  private async _compile(
+    schema: JsonSchema,
+  ): Promise<
+    (data: JsonValue, options?: SchemaValidatorOptions) => Promise<SchemaValidatorResult>
+  > {
     if (typeof schema === 'boolean') {
-      return async data => ({ success: schema, data });
+      return async (data) => ({ success: schema, data });
     }
-
-    this._replaceDeprecatedSchemaIdKeyword(schema);
 
     const schemaInfo: SchemaInfo = {
       smartDefaultRecord: new Map<string, JsonObject>(),
@@ -285,10 +299,17 @@ export class CoreSchemaRegistry implements SchemaRegistry {
     };
 
     this._ajv.removeSchema(schema);
-
     let validator: ValidateFunction;
+
     try {
       this._currentCompilationSchemaInfo = schemaInfo;
+      validator = this._ajv.compile(schema);
+    } catch (e) {
+      // This should eventually be refactored so that we we handle race condition where the same schema is validated at the same time.
+      if (!(e instanceof Ajv.MissingRefError)) {
+        throw e;
+      }
+
       validator = await this._ajv.compileAsync(schema);
     } finally {
       this._currentCompilationSchemaInfo = undefined;
@@ -308,7 +329,13 @@ export class CoreSchemaRegistry implements SchemaRegistry {
       // Apply pre-validation transforms
       if (validationOptions.applyPreTransforms) {
         for (const visitor of this._pre.values()) {
-          data = await visitJson(data, visitor, schema, this._resolver.bind(this), validator).toPromise();
+          data = await visitJson(
+            data,
+            visitor,
+            schema,
+            this._resolver.bind(this),
+            validator,
+          ).toPromise();
         }
       }
 
@@ -328,8 +355,9 @@ export class CoreSchemaRegistry implements SchemaRegistry {
           await visitJson(data, visitor, schema, this._resolver.bind(this), validator).toPromise();
         }
 
-        const definitions = schemaInfo.promptDefinitions
-          .filter(def => !validationContext.promptFieldsWithValue.has(def.id));
+        const definitions = schemaInfo.promptDefinitions.filter(
+          (def) => !validationContext.promptFieldsWithValue.has(def.id),
+        );
 
         if (definitions.length > 0) {
           await this._applyPrompts(data, definitions);
@@ -337,15 +365,30 @@ export class CoreSchemaRegistry implements SchemaRegistry {
       }
 
       // Validate using ajv
-      const success = await validator.call(validationContext, data);
-      if (!success) {
-        return { data, success, errors: validator.errors ?? [] };
+      try {
+        const success = await validator.call(validationContext, data);
+
+        if (!success) {
+          return { data, success, errors: validator.errors ?? [] };
+        }
+      } catch (error) {
+        if (error instanceof Ajv.ValidationError) {
+          return { data, success: false, errors: error.errors };
+        }
+
+        throw error;
       }
 
       // Apply post-validation transforms
       if (validationOptions.applyPostTransforms) {
         for (const visitor of this._post.values()) {
-          data = await visitJson(data, visitor, schema, this._resolver.bind(this), validator).toPromise();
+          data = await visitJson(
+            data,
+            visitor,
+            schema,
+            this._resolver.bind(this),
+            validator,
+          ).toPromise();
         }
       }
 
@@ -378,14 +421,8 @@ export class CoreSchemaRegistry implements SchemaRegistry {
           }
 
           // We cheat, heavily.
-          const pathArray = it.dataPathArr
-            .slice(1, it.dataLevel + 1)
-            .map(p => typeof p === 'number' ? p : p.str.slice(1, -1));
-
-          compilationSchemInfo.smartDefaultRecord.set(
-            JSON.stringify(pathArray),
-            schema,
-          );
+          const pathArray = this.normalizeDataPathArr(it);
+          compilationSchemInfo.smartDefaultRecord.set(JSON.stringify(pathArray), schema);
 
           return () => true;
         },
@@ -424,12 +461,10 @@ export class CoreSchemaRegistry implements SchemaRegistry {
           return () => true;
         }
 
-        const path = '/' + it.dataPathArr
-          .slice(1, it.dataLevel + 1)
-          .map(p => typeof p === 'number' ? p : p.str.slice(1, -1)).join('/');
+        const path = '/' + this.normalizeDataPathArr(it).join('/');
 
         let type: string | undefined;
-        let items: Array<string | { label: string, value: string | number | boolean }> | undefined;
+        let items: Array<string | { label: string; value: string | number | boolean }> | undefined;
         let message: string;
         if (typeof schema == 'string') {
           message = schema;
@@ -465,7 +500,8 @@ export class CoreSchemaRegistry implements SchemaRegistry {
               : schema.multiselect;
 
           const enumValues = multiselect
-            ? (parentSchema as JsonObject).items && ((parentSchema as JsonObject).items as JsonObject).enum
+            ? (parentSchema as JsonObject).items &&
+              ((parentSchema as JsonObject).items as JsonObject).enum
             : (parentSchema as JsonObject).enum;
           if (!items && Array.isArray(enumValues)) {
             items = [];
@@ -491,10 +527,10 @@ export class CoreSchemaRegistry implements SchemaRegistry {
           propertyTypes,
           default:
             typeof (parentSchema as JsonObject).default == 'object' &&
-              (parentSchema as JsonObject).default !== null &&
-              !Array.isArray((parentSchema as JsonObject).default)
+            (parentSchema as JsonObject).default !== null &&
+            !Array.isArray((parentSchema as JsonObject).default)
               ? undefined
-              : (parentSchema as JsonObject).default as string[],
+              : ((parentSchema as JsonObject).default as string[]),
           async validator(data: JsonValue) {
             try {
               const result = await it.self.validate(parentSchema, data);
@@ -555,63 +591,47 @@ export class CoreSchemaRegistry implements SchemaRegistry {
     for (const path in answers) {
       const pathFragments = path.split('/').slice(1);
 
-      CoreSchemaRegistry._set(
-        data,
-        pathFragments,
-        answers[path] as {},
-        null,
-        undefined,
-        true,
-      );
+      CoreSchemaRegistry._set(data, pathFragments, answers[path], null, undefined, true);
     }
   }
 
   private static _set(
-    // tslint:disable-next-line:no-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any,
     fragments: string[],
-    value: {},
-    // tslint:disable-next-line:no-any
-    parent: any | null = null,
+    value: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parent: any = null,
     parentProperty?: string,
     force?: boolean,
   ): void {
-    for (let i = 0; i < fragments.length; i++) {
-      const f = fragments[i];
-
-      if (f[0] == 'i') {
+    for (let index = 0; index < fragments.length; index++) {
+      const fragment = fragments[index];
+      if (/^i\d+$/.test(fragment)) {
         if (!Array.isArray(data)) {
           return;
         }
 
-        for (let j = 0; j < data.length; j++) {
-          CoreSchemaRegistry._set(data[j], fragments.slice(i + 1), value, data, '' + j);
+        for (let dataIndex = 0; dataIndex < data.length; dataIndex++) {
+          CoreSchemaRegistry._set(
+            data[dataIndex],
+            fragments.slice(index + 1),
+            value,
+            data,
+            `${dataIndex}`,
+          );
         }
 
         return;
       }
 
-      if (f.startsWith('key')) {
-        if (typeof data !== 'object') {
-          return;
-        }
-
-        for (const property in data) {
-          CoreSchemaRegistry._set(data[property], fragments.slice(i + 1), value, data, property);
-        }
-
-        return;
-      }
-
-
-      // We know we need an object because the fragment is a property key.
       if (!data && parent !== null && parentProperty) {
         data = parent[parentProperty] = {};
       }
-      parent = data;
-      parentProperty = f;
 
-      data = data[f];
+      parent = data;
+      parentProperty = fragment;
+      data = data[fragment];
     }
 
     if (parent && parentProperty && (force || parent[parentProperty] === undefined)) {
@@ -625,7 +645,7 @@ export class CoreSchemaRegistry implements SchemaRegistry {
   ): Promise<void> {
     for (const [pointer, schema] of smartDefaults.entries()) {
       const fragments = JSON.parse(pointer);
-      const source = this._sourceMap.get((schema as JsonObject).$source as string);
+      const source = this._sourceMap.get(schema.$source as string);
       if (!source) {
         continue;
       }
@@ -644,7 +664,11 @@ export class CoreSchemaRegistry implements SchemaRegistry {
       keyword: 'x-deprecated',
       validate: (schema, _data, _parentSchema, dataCxt) => {
         if (schema) {
-          onUsage(`Option "${dataCxt?.parentDataProperty}" is deprecated${typeof schema == 'string' ? ': ' + schema : '.'}`);
+          onUsage(
+            `Option "${dataCxt?.parentDataProperty}" is deprecated${
+              typeof schema == 'string' ? ': ' + schema : '.'
+            }`,
+          );
         }
 
         return true;
@@ -653,17 +677,9 @@ export class CoreSchemaRegistry implements SchemaRegistry {
     });
   }
 
-  /**
-   * Workaround to avoid a breaking change in downstream schematics.
-   * @deprecated will be removed in version 13.
-   */
-  private _replaceDeprecatedSchemaIdKeyword(schema: JsonObject): void {
-    if (typeof schema.id === 'string') {
-      schema.$id = schema.id;
-      delete schema.id;
-
-      // tslint:disable-next-line:no-console
-      console.warn(`"${schema.$id}" schema is using the keyword "id" which its support is deprecated. Use "$id" for schema ID.`);
-    }
+  private normalizeDataPathArr(it: SchemaObjCxt): (number | string)[] {
+    return it.dataPathArr
+      .slice(1, it.dataLevel + 1)
+      .map((p) => (typeof p === 'number' ? p : p.str.replace(/"/g, '')));
   }
 }

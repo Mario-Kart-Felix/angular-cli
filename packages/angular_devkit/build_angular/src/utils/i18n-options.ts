@@ -1,33 +1,42 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { BuilderContext } from '@angular-devkit/architect';
 import { json } from '@angular-devkit/core';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import * as rimraf from 'rimraf';
-import { Schema as BrowserBuilderSchema } from '../browser/schema';
-import { Schema as ServerBuilderSchema } from '../server/schema';
+import fs from 'fs';
+import module from 'module';
+import os from 'os';
+import path from 'path';
+import { Schema as BrowserBuilderSchema } from '../builders/browser/schema';
+import { Schema as ServerBuilderSchema } from '../builders/server/schema';
 import { readTsconfig } from '../utils/read-tsconfig';
-import { createTranslationLoader } from './load-translations';
+import { TranslationLoader, createTranslationLoader } from './load-translations';
+
+/**
+ * The base module location used to search for locale specific data.
+ */
+const LOCALE_DATA_BASE_MODULE = '@angular/common/locales/global';
+
+export interface LocaleDescription {
+  files: {
+    path: string;
+    integrity?: string;
+    format?: string;
+  }[];
+  translation?: Record<string, unknown>;
+  dataPath?: string;
+  baseHref?: string;
+}
 
 export interface I18nOptions {
   inlineLocales: Set<string>;
   sourceLocale: string;
-  locales: Record<
-    string,
-    {
-      files: { path: string; integrity?: string; format?: string }[];
-      translation?: Record<string, unknown>;
-      dataPath?: string;
-      baseHref?: string;
-    }
-  >;
+  locales: Record<string, LocaleDescription>;
   flatOutput?: boolean;
   readonly shouldInline: boolean;
   hasDefinedSourceLocale?: boolean;
@@ -79,7 +88,10 @@ export function createI18nOptions(
   let rawSourceLocaleBaseHref;
   if (json.isJsonObject(metadata.sourceLocale)) {
     rawSourceLocale = metadata.sourceLocale.code;
-    if (metadata.sourceLocale.baseHref !== undefined && typeof metadata.sourceLocale.baseHref !== 'string') {
+    if (
+      metadata.sourceLocale.baseHref !== undefined &&
+      typeof metadata.sourceLocale.baseHref !== 'string'
+    ) {
       throw new Error('Project i18n sourceLocale baseHref field is malformed. Expected a string.');
     }
     rawSourceLocaleBaseHref = metadata.sourceLocale.baseHref;
@@ -132,7 +144,7 @@ export function createI18nOptions(
 
   if (inline === true) {
     i18n.inlineLocales.add(i18n.sourceLocale);
-    Object.keys(i18n.locales).forEach(locale => i18n.inlineLocales.add(locale));
+    Object.keys(i18n.locales).forEach((locale) => i18n.inlineLocales.add(locale));
   } else if (inline) {
     for (const locale of inline) {
       if (!i18n.locales[locale] && i18n.sourceLocale !== locale) {
@@ -158,7 +170,7 @@ export async function configureI18nBuild<T extends BrowserBuilderSchema | Server
   }
 
   const buildOptions = { ...options };
-  const tsConfig = readTsconfig(buildOptions.tsConfig, context.workspaceRoot);
+  const tsConfig = await readTsconfig(buildOptions.tsConfig, context.workspaceRoot);
   const metadata = await context.getProjectMetadata(context.target);
   const i18n = createI18nOptions(metadata, buildOptions.localize);
 
@@ -168,14 +180,12 @@ export async function configureI18nBuild<T extends BrowserBuilderSchema | Server
   }
 
   const projectRoot = path.join(context.workspaceRoot, (metadata.root as string) || '');
-  const localeDataBasePath = findLocaleDataBasePath(projectRoot);
-  if (!localeDataBasePath) {
-    throw new Error(
-      `Unable to find locale data within '@angular/common'. Please ensure '@angular/common' is installed.`,
-    );
-  }
+  // The trailing slash is required to signal that the path is a directory and not a file.
+  const projectRequire = module.createRequire(projectRoot + '/');
+  const localeResolver = (locale: string) =>
+    projectRequire.resolve(path.join(LOCALE_DATA_BASE_MODULE, locale));
 
-  // Load locale data and translations (if present)
+  // Load locale data and translations (if present)
   let loader;
   const usedFormats = new Set<string>();
   for (const [locale, desc] of Object.entries(i18n.locales)) {
@@ -183,11 +193,11 @@ export async function configureI18nBuild<T extends BrowserBuilderSchema | Server
       continue;
     }
 
-    let localeDataPath = findLocaleDataPath(locale, localeDataBasePath);
+    let localeDataPath = findLocaleDataPath(locale, localeResolver);
     if (!localeDataPath) {
       const [first] = locale.split('-');
       if (first) {
-        localeDataPath = findLocaleDataPath(first.toLowerCase(), localeDataBasePath);
+        localeDataPath = findLocaleDataPath(first.toLowerCase(), localeResolver);
         if (localeDataPath) {
           context.logger.warn(
             `Locale data for '${locale}' cannot be found.  Using locale data for '${first}'.`,
@@ -207,54 +217,29 @@ export async function configureI18nBuild<T extends BrowserBuilderSchema | Server
       continue;
     }
 
-    if (!loader) {
-      loader = await createTranslationLoader();
-    }
+    loader ??= await createTranslationLoader();
 
-    for (const file of desc.files) {
-      const loadResult = loader(path.join(context.workspaceRoot, file.path));
+    loadTranslations(
+      locale,
+      desc,
+      context.workspaceRoot,
+      loader,
+      {
+        warn(message) {
+          context.logger.warn(message);
+        },
+        error(message) {
+          throw new Error(message);
+        },
+      },
+      usedFormats,
+    );
 
-      for (const diagnostics of loadResult.diagnostics.messages) {
-        if (diagnostics.type === 'error') {
-          throw new Error(
-            `Error parsing translation file '${file.path}': ${diagnostics.message}`,
-          );
-        } else {
-          context.logger.warn(`WARNING [${file.path}]: ${diagnostics.message}`);
-        }
-      }
-
-      if (loadResult.locale !== undefined && loadResult.locale !== locale) {
-        context.logger.warn(
-          `WARNING [${file.path}]: File target locale ('${loadResult.locale}') does not match configured locale ('${locale}')`,
-        );
-      }
-
-      usedFormats.add(loadResult.format);
-      if (usedFormats.size > 1 && tsConfig.options.enableI18nLegacyMessageIdFormat !== false) {
-        // This limitation is only for legacy message id support (defaults to true as of 9.0)
-        throw new Error(
-          'Localization currently only supports using one type of translation file format for the entire application.',
-        );
-      }
-
-      file.format = loadResult.format;
-      file.integrity = loadResult.integrity;
-
-      if (desc.translation) {
-        // Merge translations
-        for (const [id, message] of Object.entries(loadResult.translations)) {
-          if (desc.translation[id] !== undefined) {
-            context.logger.warn(
-              `WARNING [${file.path}]: Duplicate translations for message '${id}' when merging`,
-            );
-          }
-          desc.translation[id] = message;
-        }
-      } else {
-        // First or only translation file
-        desc.translation = loadResult.translations;
-      }
+    if (usedFormats.size > 1 && tsConfig.options.enableI18nLegacyMessageIdFormat !== false) {
+      // This limitation is only for legacy message id support (defaults to true as of 9.0)
+      throw new Error(
+        'Localization currently only supports using one type of translation file format for the entire application.',
+      );
     }
   }
 
@@ -266,7 +251,7 @@ export async function configureI18nBuild<T extends BrowserBuilderSchema | Server
     // Remove temporary directory used for i18n processing
     process.on('exit', () => {
       try {
-        rimraf.sync(tempPath);
+        fs.rmdirSync(tempPath, { recursive: true, maxRetries: 3 });
       } catch {}
     });
   }
@@ -274,37 +259,64 @@ export async function configureI18nBuild<T extends BrowserBuilderSchema | Server
   return { buildOptions, i18n };
 }
 
-function findLocaleDataBasePath(projectRoot: string): string | null {
-  try {
-    const commonPath = path.dirname(
-      require.resolve('@angular/common/package.json', { paths: [projectRoot] }),
-    );
-    const localesPath = path.join(commonPath, 'locales/global');
+function findLocaleDataPath(locale: string, resolver: (locale: string) => string): string | null {
+  // Remove private use subtags
+  const scrubbedLocale = locale.replace(/-x(-[a-zA-Z0-9]{1,8})+$/, '');
 
-    if (!fs.existsSync(localesPath)) {
-      return null;
+  try {
+    return resolver(scrubbedLocale);
+  } catch {
+    if (scrubbedLocale === 'en-US') {
+      // fallback to known existing en-US locale data as of 9.0
+      return findLocaleDataPath('en-US-POSIX', resolver);
     }
 
-    return localesPath;
-  } catch {
     return null;
   }
 }
 
-function findLocaleDataPath(locale: string, basePath: string): string | null {
-  // Remove private use subtags
-  const scrubbedLocale = locale.replace(/-x(-[a-zA-Z0-9]{1,8})+$/, '');
+export function loadTranslations(
+  locale: string,
+  desc: LocaleDescription,
+  workspaceRoot: string,
+  loader: TranslationLoader,
+  logger: { warn: (message: string) => void; error: (message: string) => void },
+  usedFormats?: Set<string>,
+) {
+  for (const file of desc.files) {
+    const loadResult = loader(path.join(workspaceRoot, file.path));
 
-  const localeDataPath = path.join(basePath, scrubbedLocale + '.js');
-
-  if (!fs.existsSync(localeDataPath)) {
-    if (scrubbedLocale === 'en-US') {
-      // fallback to known existing en-US locale data as of 9.0
-      return findLocaleDataPath('en-US-POSIX', basePath);
+    for (const diagnostics of loadResult.diagnostics.messages) {
+      if (diagnostics.type === 'error') {
+        logger.error(`Error parsing translation file '${file.path}': ${diagnostics.message}`);
+      } else {
+        logger.warn(`WARNING [${file.path}]: ${diagnostics.message}`);
+      }
     }
 
-    return null;
-  }
+    if (loadResult.locale !== undefined && loadResult.locale !== locale) {
+      logger.warn(
+        `WARNING [${file.path}]: File target locale ('${loadResult.locale}') does not match configured locale ('${locale}')`,
+      );
+    }
 
-  return localeDataPath;
+    usedFormats?.add(loadResult.format);
+    file.format = loadResult.format;
+    file.integrity = loadResult.integrity;
+
+    if (desc.translation) {
+      // Merge translations
+      for (const [id, message] of Object.entries(loadResult.translations)) {
+        if (desc.translation[id] !== undefined) {
+          logger.warn(
+            `WARNING [${file.path}]: Duplicate translations for message '${id}' when merging`,
+          );
+        }
+        desc.translation[id] = message;
+      }
+    } else {
+      // First or only translation file
+      desc.translation = loadResult.translations;
+    }
+  }
 }

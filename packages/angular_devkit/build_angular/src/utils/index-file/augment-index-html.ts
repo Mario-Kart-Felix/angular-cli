@@ -1,17 +1,20 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
 import { createHash } from 'crypto';
+import { loadEsmModule } from '../load-esm';
 import { htmlRewritingStream } from './html-rewriting-stream';
 
 export type LoadOutputFileFunctionType = (file: string) => Promise<string>;
 
 export type CrossOriginValue = 'none' | 'anonymous' | 'use-credentials';
+
+export type Entrypoint = [name: string, isModule: boolean];
 
 export interface AugmentIndexHtmlOptions {
   /* Input contents */
@@ -23,13 +26,8 @@ export interface AugmentIndexHtmlOptions {
   crossOrigin?: CrossOriginValue;
   /*
    * Files emitted by the build.
-   * Js files will be added without 'nomodule' nor 'module'.
    */
   files: FileInfo[];
-  /** Files that should be added using 'nomodule'. */
-  noModuleFiles?: FileInfo[];
-  /** Files that should be added using 'module'. */
-  moduleFiles?: FileInfo[];
   /*
    * Function that loads a file used.
    * This allows us to use different routines within the IndexHtmlWebpackPlugin and
@@ -37,7 +35,7 @@ export interface AugmentIndexHtmlOptions {
    */
   loadOutputFile: LoadOutputFileFunctionType;
   /** Used to sort the inseration of files in the HTML file */
-  entrypoints: string[];
+  entrypoints: Entrypoint[];
   /** Used to set the document default locale */
   lang?: string;
 }
@@ -47,18 +45,19 @@ export interface FileInfo {
   name: string;
   extension: string;
 }
-
 /*
  * Helper function used by the IndexHtmlWebpackPlugin.
  * Can also be directly used by builder, e. g. in order to generate an index.html
  * after processing several configurations in order to build different sets of
  * bundles for differential serving.
  */
-export async function augmentIndexHtml(params: AugmentIndexHtmlOptions): Promise<string> {
-  const {
-    loadOutputFile, files, noModuleFiles = [], moduleFiles = [], entrypoints,
-    sri, deployUrl = '', lang, baseHref, html,
-  } = params;
+export async function augmentIndexHtml(
+  params: AugmentIndexHtmlOptions,
+): Promise<{ content: string; warnings: string[]; errors: string[] }> {
+  const { loadOutputFile, files, entrypoints, sri, deployUrl = '', lang, baseHref, html } = params;
+
+  const warnings: string[] = [];
+  const errors: string[] = [];
 
   let { crossOrigin = 'none' } = params;
   if (sri && crossOrigin === 'none') {
@@ -66,19 +65,19 @@ export async function augmentIndexHtml(params: AugmentIndexHtmlOptions): Promise
   }
 
   const stylesheets = new Set<string>();
-  const scripts = new Set<string>();
+  const scripts = new Map</** file name */ string, /** isModule */ boolean>();
 
-  // Sort files in the order we want to insert them by entrypoint and dedupes duplicates
-  const mergedFiles = [...moduleFiles, ...noModuleFiles, ...files];
-  for (const entrypoint of entrypoints) {
-    for (const { extension, file, name } of mergedFiles) {
-      if (name !== entrypoint) {
+  // Sort files in the order we want to insert them by entrypoint
+  for (const [entrypoint, isModule] of entrypoints) {
+    for (const { extension, file, name } of files) {
+      if (name !== entrypoint || scripts.has(file) || stylesheets.has(file)) {
         continue;
       }
 
       switch (extension) {
         case '.js':
-          scripts.add(file);
+          // Also, non entrypoints need to be loaded as no module as they can contain problematic code.
+          scripts.set(file, isModule);
           break;
         case '.css':
           stylesheets.add(file);
@@ -88,36 +87,22 @@ export async function augmentIndexHtml(params: AugmentIndexHtmlOptions): Promise
   }
 
   let scriptTags: string[] = [];
-  for (const script of scripts) {
-    const attrs = [`src="${deployUrl}${script}"`];
+  for (const [src, isModule] of scripts) {
+    const attrs = [`src="${deployUrl}${src}"`];
+
+    // This is also need for non entry-points as they may contain problematic code.
+    if (isModule) {
+      attrs.push('type="module"');
+    } else {
+      attrs.push('defer');
+    }
 
     if (crossOrigin !== 'none') {
       attrs.push(`crossorigin="${crossOrigin}"`);
     }
 
-    // We want to include nomodule or module when a file is not common amongs all
-    // such as runtime.js
-    const scriptPredictor = ({ file }: FileInfo): boolean => file === script;
-    if (!files.some(scriptPredictor)) {
-      // in some cases for differential loading file with the same name is available in both
-      // nomodule and module such as scripts.js
-      // we shall not add these attributes if that's the case
-      const isNoModuleType = noModuleFiles.some(scriptPredictor);
-      const isModuleType = moduleFiles.some(scriptPredictor);
-
-      if (isNoModuleType && !isModuleType) {
-        attrs.push('nomodule', 'defer');
-      } else if (isModuleType && !isNoModuleType) {
-        attrs.push('type="module"');
-      } else {
-        attrs.push('defer');
-      }
-    } else {
-      attrs.push('defer');
-    }
-
     if (sri) {
-      const content = await loadOutputFile(script);
+      const content = await loadOutputFile(src);
       attrs.push(generateSriAttributes(content));
     }
 
@@ -125,34 +110,36 @@ export async function augmentIndexHtml(params: AugmentIndexHtmlOptions): Promise
   }
 
   let linkTags: string[] = [];
-  for (const stylesheet of stylesheets) {
-    const attrs = [
-      `rel="stylesheet"`,
-      `href="${deployUrl}${stylesheet}"`,
-    ];
+  for (const src of stylesheets) {
+    const attrs = [`rel="stylesheet"`, `href="${deployUrl}${src}"`];
 
     if (crossOrigin !== 'none') {
       attrs.push(`crossorigin="${crossOrigin}"`);
     }
 
     if (sri) {
-      const content = await loadOutputFile(stylesheet);
+      const content = await loadOutputFile(src);
       attrs.push(generateSriAttributes(content));
     }
 
     linkTags.push(`<link ${attrs.join(' ')}>`);
   }
 
+  const dir = lang ? await getLanguageDirection(lang, warnings) : undefined;
   const { rewriter, transformedContent } = await htmlRewritingStream(html);
   const baseTagExists = html.includes('<base');
 
   rewriter
-    .on('startTag', tag => {
+    .on('startTag', (tag) => {
       switch (tag.tagName) {
         case 'html':
           // Adjust document locale if specified
           if (isString(lang)) {
             updateAttribute(tag, 'lang', lang);
+          }
+
+          if (dir) {
+            updateAttribute(tag, 'dir', dir);
           }
           break;
         case 'head':
@@ -174,7 +161,7 @@ export async function augmentIndexHtml(params: AugmentIndexHtmlOptions): Promise
 
       rewriter.emitStartTag(tag);
     })
-    .on('endTag', tag => {
+    .on('endTag', (tag) => {
       switch (tag.tagName) {
         case 'head':
           for (const linkTag of linkTags) {
@@ -198,25 +185,30 @@ export async function augmentIndexHtml(params: AugmentIndexHtmlOptions): Promise
 
   const content = await transformedContent;
 
-  if (linkTags.length || scriptTags.length) {
-    // In case no body/head tags are not present (dotnet partial templates)
-    return linkTags.join('') + scriptTags.join('') + content;
-  }
-
-  return content;
+  return {
+    content:
+      linkTags.length || scriptTags.length
+        ? // In case no body/head tags are not present (dotnet partial templates)
+          linkTags.join('') + scriptTags.join('') + content
+        : content,
+    warnings,
+    errors,
+  };
 }
 
 function generateSriAttributes(content: string): string {
   const algo = 'sha384';
-  const hash = createHash(algo)
-    .update(content, 'utf8')
-    .digest('base64');
+  const hash = createHash(algo).update(content, 'utf8').digest('base64');
 
   return `integrity="${algo}-${hash}"`;
 }
 
-function updateAttribute(tag: { attrs: { name: string, value: string }[] }, name: string, value: string): void {
-  const index = tag.attrs.findIndex(a => a.name === name);
+function updateAttribute(
+  tag: { attrs: { name: string; value: string }[] },
+  name: string,
+  value: string,
+): void {
+  const index = tag.attrs.findIndex((a) => a.name === name);
   const newValue = { name, value };
 
   if (index === -1) {
@@ -228,4 +220,42 @@ function updateAttribute(tag: { attrs: { name: string, value: string }[] }, name
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
+}
+
+async function getLanguageDirection(
+  locale: string,
+  warnings: string[],
+): Promise<string | undefined> {
+  const dir = await getLanguageDirectionFromLocales(locale);
+
+  if (!dir) {
+    warnings.push(
+      `Locale data for '${locale}' cannot be found. 'dir' attribute will not be set for this locale.`,
+    );
+  }
+
+  return dir;
+}
+
+async function getLanguageDirectionFromLocales(locale: string): Promise<string | undefined> {
+  try {
+    const localeData = (
+      await loadEsmModule<typeof import('@angular/common/locales/en')>(
+        `@angular/common/locales/${locale}`,
+      )
+    ).default;
+
+    const dir = localeData[localeData.length - 2];
+
+    return isString(dir) ? dir : undefined;
+  } catch {
+    // In some cases certain locales might map to files which are named only with language id.
+    // Example: `en-US` -> `en`.
+    const [languageId] = locale.split('-', 1);
+    if (languageId !== locale) {
+      return getLanguageDirectionFromLocales(languageId);
+    }
+  }
+
+  return undefined;
 }

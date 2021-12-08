@@ -1,13 +1,13 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-// tslint:disable:no-big-function
+
 import { SchematicTestRunner, UnitTestTree } from '@angular-devkit/schematics/testing';
-import { Schema as ApplicationOptions } from '../application/schema';
+import { Style as AppStyle, Schema as ApplicationOptions } from '../application/schema';
 import { createAppModule } from '../utility/test';
 import { Schema as WorkspaceOptions } from '../workspace/schema';
 import { ChangeDetection, Schema as ComponentOptions, Style } from './schema';
@@ -43,7 +43,7 @@ describe('Component Schematic', () => {
     inlineStyle: false,
     inlineTemplate: false,
     routing: false,
-    style: Style.Css,
+    style: AppStyle.Css,
     skipTests: false,
     skipPackageJson: false,
   };
@@ -145,7 +145,7 @@ describe('Component Schematic', () => {
 
     const tree = await schematicRunner.runSchematicAsync('component', options, appTree).toPromise();
     const appModuleContent = tree.readContent('/projects/bar/src/app/app.module.ts');
-    expect(appModuleContent).toMatch(/exports: \[\n(\s*)  FooComponent\n\1\]/);
+    expect(appModuleContent).toMatch(/exports: \[\n(\s*) {2}FooComponent\n\1\]/);
   });
 
   it('should import into a specified module', async () => {
@@ -207,6 +207,14 @@ describe('Component Schematic', () => {
     expect(content).toMatch(/selector: 'pre-foo'/);
   });
 
+  it('should error when name starts with a digit', async () => {
+    const options = { ...defaultOptions, name: '1-one' };
+
+    await expectAsync(
+      schematicRunner.runSchematicAsync('component', options, appTree).toPromise(),
+    ).toBeRejectedWithError('Selector (app-1-one) is invalid.');
+  });
+
   it('should use the default project prefix if none is passed', async () => {
     const options = { ...defaultOptions, prefix: undefined };
 
@@ -245,21 +253,21 @@ describe('Component Schematic', () => {
     const options = { ...defaultOptions, displayBlock: true };
     const tree = await schematicRunner.runSchematicAsync('component', options, appTree).toPromise();
     const content = tree.readContent('/projects/bar/src/app/foo/foo.component.css');
-    expect(content).toMatch(/:host {\r?\n  display: block;\r?\n}/);
+    expect(content).toMatch(/:host {\r?\n {2}display: block;\r?\n}/);
   });
 
   it('should respect the displayBlock option when inlineStyle is `false` and use correct syntax for `scss`', async () => {
     const options = { ...defaultOptions, displayBlock: true, style: 'scss' };
     const tree = await schematicRunner.runSchematicAsync('component', options, appTree).toPromise();
     const content = tree.readContent('/projects/bar/src/app/foo/foo.component.scss');
-    expect(content).toMatch(/:host {\r?\n  display: block;\r?\n}/);
+    expect(content).toMatch(/:host {\r?\n {2}display: block;\r?\n}/);
   });
 
   it('should respect the displayBlock option when inlineStyle is `false` and use correct syntax for `sass', async () => {
     const options = { ...defaultOptions, displayBlock: true, style: 'sass' };
     const tree = await schematicRunner.runSchematicAsync('component', options, appTree).toPromise();
     const content = tree.readContent('/projects/bar/src/app/foo/foo.component.sass');
-    expect(content).toMatch(/\\:host\r?\n  display: block;\r?\n/);
+    expect(content).toMatch(/\\:host\r?\n {2}display: block;\r?\n/);
   });
 
   it('should respect the displayBlock option when inlineStyle is `true`', async () => {
@@ -276,6 +284,15 @@ describe('Component Schematic', () => {
     expect(content).toMatch(/styleUrls: \['.\/foo.component.sass/);
     expect(tree.files).toContain('/projects/bar/src/app/foo/foo.component.sass');
     expect(tree.files).not.toContain('/projects/bar/src/app/foo/foo.component.css');
+  });
+
+  it('should respect the style=none option', async () => {
+    const options = { ...defaultOptions, style: Style.None };
+    const tree = await schematicRunner.runSchematicAsync('component', options, appTree).toPromise();
+    const content = tree.readContent('/projects/bar/src/app/foo/foo.component.ts');
+    expect(content).not.toMatch(/styleUrls: /);
+    expect(tree.files).not.toContain('/projects/bar/src/app/foo/foo.component.css');
+    expect(tree.files).not.toContain('/projects/bar/src/app/foo/foo.component.none');
   });
 
   it('should respect the type option', async () => {
@@ -364,5 +381,20 @@ describe('Component Schematic', () => {
       .runSchematicAsync('component', defaultOptions, appTree)
       .toPromise();
     expect(appTree.files).toContain('/projects/bar/custom/app/foo/foo.component.ts');
+  });
+
+  it('should respect the skipTests option', async () => {
+    const options = { ...defaultOptions, skipTests: true };
+    const tree = await schematicRunner.runSchematicAsync('component', options, appTree).toPromise();
+    const files = tree.files;
+
+    expect(files).toEqual(
+      jasmine.arrayContaining([
+        '/projects/bar/src/app/foo/foo.component.css',
+        '/projects/bar/src/app/foo/foo.component.html',
+        '/projects/bar/src/app/foo/foo.component.ts',
+      ]),
+    );
+    expect(tree.files).not.toContain('/projects/bar/src/app/foo/foo.component.spec.ts');
   });
 });

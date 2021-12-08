@@ -1,15 +1,16 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import * as fs from 'fs';
 import * as path from 'path';
-import * as webpack from 'webpack';
-import { ExtraEntryPoint } from '../../browser/schema';
-import { BuildBrowserFeatures } from '../../utils/build-browser-features';
+import { Configuration, RuleSetUseItem } from 'webpack';
+import { ExtraEntryPoint } from '../../builders/browser/schema';
+import { SassWorkerImplementation } from '../../sass/sass-service';
 import { WebpackConfigOptions } from '../../utils/build-options';
 import {
   AnyComponentStyleBudgetChecker,
@@ -17,6 +18,7 @@ import {
   RemoveHashPlugin,
   SuppressExtractedTextChunksWebpackPlugin,
 } from '../plugins';
+import { CssOptimizerPlugin } from '../plugins/css-optimizer-plugin';
 import {
   assetNameTemplateFactory,
   getOutputHashFormat,
@@ -67,14 +69,14 @@ function resolveGlobalStyles(
   return { entryPoints, noInjectNames, paths };
 }
 
-// tslint:disable-next-line: no-big-function
-export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuration {
+// eslint-disable-next-line max-lines-per-function
+export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
   const MiniCssExtractPlugin = require('mini-css-extract-plugin');
   const postcssImports = require('postcss-import');
   const postcssPresetEnv: typeof import('postcss-preset-env') = require('postcss-preset-env');
 
   const { root, buildOptions } = wco;
-  const extraPlugins: { apply(compiler: webpack.Compiler): void }[] = [];
+  const extraPlugins: Configuration['plugins'] = [];
 
   extraPlugins.push(new AnyComponentStyleBudgetChecker(buildOptions.budgets));
 
@@ -88,33 +90,32 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     buildOptions.stylePreprocessorOptions?.includePaths?.map((p) => path.resolve(root, p)) ?? [];
 
   // Process global styles.
-  const { entryPoints, noInjectNames, paths: globalStylePaths } = resolveGlobalStyles(
-    buildOptions.styles,
-    root,
-    !!buildOptions.preserveSymlinks,
-  );
+  const {
+    entryPoints,
+    noInjectNames,
+    paths: globalStylePaths,
+  } = resolveGlobalStyles(buildOptions.styles, root, !!buildOptions.preserveSymlinks);
   if (noInjectNames.length > 0) {
     // Add plugin to remove hashes from lazy styles.
     extraPlugins.push(new RemoveHashPlugin({ chunkNames: noInjectNames, hashFormat }));
   }
 
-  if (globalStylePaths.some(p => p.endsWith('.styl'))) {
+  if (globalStylePaths.some((p) => p.endsWith('.styl'))) {
     wco.logger.warn(
       'Stylus usage is deprecated and will be removed in a future major version. ' +
-      'To opt-out of the deprecated behaviour, please migrate to another stylesheet language.',
+        'To opt-out of the deprecated behaviour, please migrate to another stylesheet language.',
     );
   }
 
-  let sassImplementation: {} | undefined;
-  try {
-    // tslint:disable-next-line:no-implicit-dependencies
-    sassImplementation = require('node-sass');
-    wco.logger.warn(
-      `'node-sass' usage is deprecated and will be removed in a future major version. ` +
-        `To opt-out of the deprecated behaviour and start using 'sass' uninstall 'node-sass'.`,
-    );
-  } catch {
-    sassImplementation = require('sass');
+  const sassImplementation = getSassImplementation();
+  if (sassImplementation instanceof SassWorkerImplementation) {
+    extraPlugins.push({
+      apply(compiler) {
+        compiler.hooks.shutdown.tap('sass-worker', () => {
+          sassImplementation?.close();
+        });
+      },
+    });
   }
 
   const assetNameTemplate = assetNameTemplateFactory(hashFormat);
@@ -155,9 +156,13 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     }
   }
 
-  const { supportedBrowsers } = new BuildBrowserFeatures(wco.projectRoot);
-  const postcssOptionsCreator = (inlineSourcemaps: boolean, extracted: boolean | undefined) => {
-    // tslint:disable-next-line: no-any
+  const postcssPresetEnvPlugin = postcssPresetEnv({
+    browsers: buildOptions.supportedBrowsers,
+    autoprefixer: true,
+    stage: 3,
+  });
+  const postcssOptionsCreator = (inlineSourcemaps: boolean, extracted: boolean) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const optionGenerator = (loader: any) => ({
       map: inlineSourcemaps
         ? {
@@ -193,12 +198,7 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
           extracted,
         }),
         ...extraPostcssPlugins,
-        postcssPresetEnv({
-          // tslint:disable-next-line: no-any
-          browsers: supportedBrowsers as any, // Typings only allow a string
-          autoprefixer: true,
-          stage: 3,
-        }),
+        postcssPresetEnvPlugin,
       ],
     });
     // postcss-loader fails when trying to determine configuration files for data URIs
@@ -218,34 +218,32 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     !buildOptions.sourceMap.hidden
   );
 
-  if (buildOptions.extractCss) {
-    // extract global css from js files into own css file.
-    extraPlugins.push(new MiniCssExtractPlugin({ filename: `[name]${hashFormat.extract}.css` }));
+  // extract global css from js files into own css file.
+  extraPlugins.push(new MiniCssExtractPlugin({ filename: `[name]${hashFormat.extract}.css` }));
 
-    if (!buildOptions.hmr) {
-      // don't remove `.js` files for `.css` when we are using HMR these contain HMR accept codes.
-      // suppress empty .js files in css only entry points.
-      extraPlugins.push(new SuppressExtractedTextChunksWebpackPlugin());
-    }
+  if (!buildOptions.hmr) {
+    // don't remove `.js` files for `.css` when we are using HMR these contain HMR accept codes.
+    // suppress empty .js files in css only entry points.
+    extraPlugins.push(new SuppressExtractedTextChunksWebpackPlugin());
   }
 
-  const componentStyleLoaders: webpack.RuleSetUseItem[] = [
-    { loader: require.resolve('raw-loader') },
+  const postCss = require('postcss');
+  const postCssLoaderPath = require.resolve('postcss-loader');
+
+  const componentStyleLoaders: RuleSetUseItem[] = [
     {
-      loader: require.resolve('postcss-loader'),
+      loader: postCssLoaderPath,
       options: {
-        implementation: require('postcss'),
+        implementation: postCss,
         postcssOptions: postcssOptionsCreator(componentsSourceMap, false),
       },
     },
   ];
 
-  const globalStyleLoaders: webpack.RuleSetUseItem[] = [
-    buildOptions.extractCss
-      ? {
-          loader: MiniCssExtractPlugin.loader,
-        }
-      : require.resolve('style-loader'),
+  const globalStyleLoaders: RuleSetUseItem[] = [
+    {
+      loader: MiniCssExtractPlugin.loader,
+    },
     {
       loader: require.resolve('css-loader'),
       options: {
@@ -254,10 +252,10 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
       },
     },
     {
-      loader: require.resolve('postcss-loader'),
+      loader: postCssLoaderPath,
       options: {
-        implementation: require('postcss'),
-        postcssOptions: postcssOptionsCreator(false, buildOptions.extractCss),
+        implementation: postCss,
+        postcssOptions: postcssOptionsCreator(false, true),
         sourceMap: !!cssSourceMap,
       },
     },
@@ -265,17 +263,14 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
 
   const styleLanguages: {
     extensions: string[];
-    mimetype?: string;
-    use: webpack.RuleSetUseItem[];
+    use: RuleSetUseItem[];
   }[] = [
     {
       extensions: ['css'],
-      mimetype: 'text/css',
       use: [],
     },
     {
       extensions: ['scss'],
-      mimetype: 'text/x-scss',
       use: [
         {
           loader: require.resolve('resolve-url-loader'),
@@ -289,14 +284,18 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
             implementation: sassImplementation,
             sourceMap: true,
             sassOptions: {
+              // Prevent use of `fibers` package as it no longer works in newer Node.js versions
+              fiber: false,
               // bootstrap-sass requires a minimum precision of 8
               precision: 8,
               includePaths,
               // Use expanded as otherwise sass will remove comments that are needed for autoprefixer
               // Ex: /* autoprefixer grid: autoplace */
-              // tslint:disable-next-line: max-line-length
               // See: https://github.com/webpack-contrib/sass-loader/blob/45ad0be17264ceada5f0b4fb87e9357abe85c4ff/src/getSassOptions.js#L68-L70
               outputStyle: 'expanded',
+              // Silences compiler warnings from 3rd party stylesheets
+              quietDeps: !buildOptions.verbose,
+              verbose: buildOptions.verbose,
             },
           },
         },
@@ -304,7 +303,6 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     },
     {
       extensions: ['sass'],
-      mimetype: 'text/x-sass',
       use: [
         {
           loader: require.resolve('resolve-url-loader'),
@@ -318,15 +316,19 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
             implementation: sassImplementation,
             sourceMap: true,
             sassOptions: {
+              // Prevent use of `fibers` package as it no longer works in newer Node.js versions
+              fiber: false,
               indentedSyntax: true,
               // bootstrap-sass requires a minimum precision of 8
               precision: 8,
               includePaths,
               // Use expanded as otherwise sass will remove comments that are needed for autoprefixer
               // Ex: /* autoprefixer grid: autoplace */
-              // tslint:disable-next-line: max-line-length
               // See: https://github.com/webpack-contrib/sass-loader/blob/45ad0be17264ceada5f0b4fb87e9357abe85c4ff/src/getSassOptions.js#L68-L70
               outputStyle: 'expanded',
+              // Silences compiler warnings from 3rd party stylesheets
+              quietDeps: !buildOptions.verbose,
+              verbose: buildOptions.verbose,
             },
           },
         },
@@ -334,7 +336,6 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     },
     {
       extensions: ['less'],
-      mimetype: 'text/x-less',
       use: [
         {
           loader: require.resolve('less-loader'),
@@ -351,7 +352,6 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     },
     {
       extensions: ['styl'],
-      mimetype: 'text/x-stylus',
       use: [
         {
           loader: require.resolve('stylus-loader'),
@@ -368,45 +368,52 @@ export function getStylesConfig(wco: WebpackConfigOptions): webpack.Configuratio
     },
   ];
 
-  const inlineLanguageRules: webpack.RuleSetRule[] = [];
-  const fileLanguageRules: webpack.RuleSetRule[] = [];
-  for (const language of styleLanguages) {
-    if (language.mimetype) {
-      // inline component styles use data URIs and processing is selected by mimetype
-      inlineLanguageRules.push({
-        mimetype: language.mimetype,
-        use: [...componentStyleLoaders, ...language.use],
-      });
-    }
-
-    fileLanguageRules.push({
-      test: new RegExp(`\\.(?:${language.extensions.join('|')})$`, 'i'),
-      rules: [
-        // Setup processing rules for global and component styles
-        {
-          oneOf: [
-            // Component styles are all styles except defined global styles
-            {
-              exclude: globalStylePaths,
-              use: componentStyleLoaders,
-            },
-            // Global styles are only defined global styles
-            {
-              include: globalStylePaths,
-              use: globalStyleLoaders,
-            },
-          ],
-        },
-        { use: language.use },
-      ],
-    });
-  }
-
   return {
     entry: entryPoints,
     module: {
-      rules: [...fileLanguageRules, ...inlineLanguageRules],
+      rules: styleLanguages.map(({ extensions, use }) => ({
+        test: new RegExp(`\\.(?:${extensions.join('|')})$`, 'i'),
+        rules: [
+          // Setup processing rules for global and component styles
+          {
+            oneOf: [
+              // Component styles are all styles except defined global styles
+              {
+                use: componentStyleLoaders,
+                resourceQuery: /\?ngResource/,
+                type: 'asset/source',
+              },
+              // Global styles are only defined global styles
+              {
+                use: globalStyleLoaders,
+                resourceQuery: { not: [/\?ngResource/] },
+              },
+            ],
+          },
+          { use },
+        ],
+      })),
+    },
+    optimization: {
+      minimizer: buildOptions.optimization.styles.minify
+        ? [
+            new CssOptimizerPlugin({
+              supportedBrowsers: buildOptions.supportedBrowsers,
+            }),
+          ]
+        : undefined,
     },
     plugins: extraPlugins,
   };
+}
+
+function getSassImplementation(): SassWorkerImplementation | typeof import('sass') {
+  const { webcontainer } = process.versions as unknown as Record<string, unknown>;
+
+  // When `webcontainer` is a truthy it means that we are running in a StackBlitz webcontainer.
+  // `SassWorkerImplementation` uses `receiveMessageOnPort` Node.js `worker_thread` API to ensure sync behavior which is ~2x faster.
+  // However, it is non trivial to support this in a webcontainer and while slower we choose to use `dart-sass`
+  // which in Webpack uses the slower async path.
+  // We should periodically check with StackBlitz folks (Mark Whitfeld / Dominic Elm) to determine if this workaround is still needed.
+  return webcontainer ? require('sass') : new SassWorkerImplementation();
 }

@@ -1,23 +1,27 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import { CompilerHost } from '@angular/compiler-cli';
+
+/* eslint-disable @typescript-eslint/unbound-method */
+import type { CompilerHost } from '@angular/compiler-cli';
 import { createHash } from 'crypto';
 import * as path from 'path';
 import * as ts from 'typescript';
 import { NgccProcessor } from '../ngcc_processor';
 import { WebpackResourceLoader } from '../resource_loader';
-import { workaroundStylePreprocessing } from '../transformers';
 import { normalizePath } from './paths';
 
 export function augmentHostWithResources(
   host: ts.CompilerHost,
   resourceLoader: WebpackResourceLoader,
-  options: { directTemplateLoading?: boolean, inlineStyleMimeType?: string } = {},
+  options: {
+    directTemplateLoading?: boolean;
+    inlineStyleFileExtension?: string;
+  } = {},
 ) {
   const resourceHost = host as CompilerHost;
 
@@ -55,10 +59,12 @@ export function augmentHostWithResources(
       return null;
     }
 
-    if (options.inlineStyleMimeType) {
+    if (options.inlineStyleFileExtension) {
       const content = await resourceLoader.process(
         data,
-        options.inlineStyleMimeType,
+        options.inlineStyleFileExtension,
+        context.type,
+        context.containingFile,
       );
 
       return { content };
@@ -130,7 +136,11 @@ export function augmentHostWithDependencyCollection(
 ): void {
   if (host.resolveModuleNames) {
     const baseResolveModuleNames = host.resolveModuleNames;
-    host.resolveModuleNames = function (moduleNames: string[], containingFile: string, ...parameters) {
+    host.resolveModuleNames = function (
+      moduleNames: string[],
+      containingFile: string,
+      ...parameters
+    ) {
       const results = baseResolveModuleNames.call(host, moduleNames, containingFile, ...parameters);
 
       const containingFilePath = normalizePath(containingFile);
@@ -256,7 +266,7 @@ export function augmentHostWithReplacements(
     if (replacement) {
       return {
         resolvedFileName: replacement,
-        isExternalLibraryImport: /[\/\\]node_modules[\/\\]/.test(replacement),
+        isExternalLibraryImport: /[/\\]node_modules[/\\]/.test(replacement),
       };
     } else {
       return resolvedModule;
@@ -334,7 +344,6 @@ export function augmentHostWithCaching(
     languageVersion,
     onError,
     shouldCreateNewSourceFile,
-    // tslint:disable-next-line: trailing-comma
     ...parameters
   ) {
     if (!shouldCreateNewSourceFile && cache.has(fileName)) {
@@ -351,11 +360,6 @@ export function augmentHostWithCaching(
     );
 
     if (file) {
-      // Temporary workaround for upstream transform resource defect
-      if (file && !file.isDeclarationFile && file.text.includes('@Component')) {
-        workaroundStylePreprocessing(file);
-      }
-
       cache.set(fileName, file);
     }
 

@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import {
   BuilderContext,
   BuilderHandlerFn,
@@ -38,16 +39,32 @@ export interface BuilderHarnessExecutionOptions {
   useNativeFileWatching: boolean;
 }
 
+/**
+ * The default set of fields provided to all builders executed via the BuilderHarness.
+ * `root` and `sourceRoot` are required for most Angular builders to function.
+ * `cli.cache.enabled` set to false provides improved test isolation guarantees by disabling
+ * the Webpack caching.
+ */
+const DEFAULT_PROJECT_METADATA = {
+  root: '.',
+  sourceRoot: 'src',
+  cli: {
+    cache: {
+      enabled: false,
+    },
+  },
+};
+
 export class BuilderHarness<T> {
   private readonly builderInfo: BuilderInfo;
   private schemaRegistry = new json.schema.CoreSchemaRegistry();
   private projectName = 'test';
-  private projectMetadata: Record<string, unknown> = { root: '.', sourceRoot: 'src' };
+  private projectMetadata: Record<string, unknown> = DEFAULT_PROJECT_METADATA;
   private targetName?: string;
   private options = new Map<string | null, T>();
   private builderTargets = new Map<
     string,
-    // tslint:disable-next-line: no-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     { handler: BuilderHandlerFn<any>; info: BuilderInfo; options: json.JsonObject }
   >();
   private watcherNotifier?: WatcherNotifier;
@@ -222,9 +239,9 @@ export class BuilderHarness<T> {
       map((buildResult) => ({ result: buildResult, error: undefined })),
       catchError((error) => {
         if (outputLogsOnException) {
-          // tslint:disable-next-line: no-console
+          // eslint-disable-next-line no-console
           console.error(logs.map((entry) => entry.message).join('\n'));
-          // tslint:disable-next-line: no-console
+          // eslint-disable-next-line no-console
           console.error(error);
         }
 
@@ -232,7 +249,7 @@ export class BuilderHarness<T> {
       }),
       map(({ result, error }) => {
         if (outputLogsOnFailure && result?.success === false && logs.length > 0) {
-          // tslint:disable-next-line: no-console
+          // eslint-disable-next-line no-console
           console.error(logs.map((entry) => entry.message).join('\n'));
         }
 
@@ -246,6 +263,7 @@ export class BuilderHarness<T> {
         this.watcherNotifier = undefined;
 
         for (const teardown of context.teardowns) {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
           teardown();
         }
       }),
@@ -316,9 +334,10 @@ export class BuilderHarness<T> {
   }
 
   hasFileMatch(directory: string, pattern: RegExp): boolean {
-    return this.host.scopedSync()
+    return this.host
+      .scopedSync()
       .list(normalize(directory))
-      .some(name => pattern.test(name));
+      .some((name) => pattern.test(name));
   }
 
   readFile(path: string): string {
@@ -362,7 +381,7 @@ class HarnessBuilderContext implements BuilderContext {
 
   get analytics(): analytics.Analytics {
     // Can be undefined even though interface does not allow it
-    return (undefined as unknown) as analytics.Analytics;
+    return undefined as unknown as analytics.Analytics;
   }
 
   addTeardown(teardown: () => Promise<void> | void): void {
@@ -444,7 +463,7 @@ class HarnessBuilderContext implements BuilderContext {
     options: json.JsonObject,
     builderName: string,
   ): Promise<T> {
-    return (this.contextHost.validate(options, builderName) as unknown) as T;
+    return this.contextHost.validate(options, builderName) as unknown as T;
   }
 
   // Unused report methods

@@ -1,26 +1,26 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-// tslint:disable
+
+/* eslint-disable */
 // TODO: cleanup this file, it's copied as is from Angular CLI.
 import * as http from 'http';
 import * as path from 'path';
 import * as glob from 'glob';
-import * as webpack from 'webpack';
+import webpack from 'webpack';
 const webpackDevMiddleware = require('webpack-dev-middleware');
 
 import { statsErrorsToString } from '../../utils/stats';
 import { createConsoleLogger } from '@angular-devkit/core/node';
 import { logging } from '@angular-devkit/core';
-import { WebpackTestOptions } from '../../../utils/build-options';
+import { BuildOptions } from '../../../utils/build-options';
 import { normalizeSourceMaps } from '../../../utils/index';
 
 const KARMA_APPLICATION_PATH = '_karma_webpack_';
-
 
 let blocked: any[] = [];
 let isBlocked = false;
@@ -33,14 +33,14 @@ function addKarmaFiles(files: any[], newFiles: any[], prepend = false) {
   const defaults = {
     included: true,
     served: true,
-    watched: true
+    watched: true,
   };
 
   const processedFiles = newFiles
     // Remove globs that do not match any files, otherwise Karma will show a warning for these.
-    .filter(file => glob.sync(file.pattern, { nodir: true }).length != 0)
+    .filter((file) => glob.sync(file.pattern, { nodir: true }).length != 0)
     // Fill in pattern properties with defaults.
-    .map(file => ({ ...defaults, ...file }));
+    .map((file) => ({ ...defaults, ...file }));
 
   // It's important to not replace the array, because
   // karma already has a reference to the existing array.
@@ -53,11 +53,12 @@ function addKarmaFiles(files: any[], newFiles: any[], prepend = false) {
 
 const init: any = (config: any, emitter: any) => {
   if (!config.buildWebpack) {
-    throw new Error(`The '@angular-devkit/build-angular/plugins/karma' karma plugin is meant to` +
-      ` be used from within Angular CLI and will not work correctly outside of it.`
-    )
+    throw new Error(
+      `The '@angular-devkit/build-angular/plugins/karma' karma plugin is meant to` +
+        ` be used from within Angular CLI and will not work correctly outside of it.`,
+    );
   }
-  const options = config.buildWebpack.options as WebpackTestOptions;
+  const options = config.buildWebpack.options as BuildOptions;
   const logger: logging.Logger = config.buildWebpack.logger || createConsoleLogger();
   successCb = config.buildWebpack.successCb;
   failureCb = config.buildWebpack.failureCb;
@@ -72,37 +73,24 @@ const init: any = (config: any, emitter: any) => {
     const smsPath = path.dirname(require.resolve('source-map-support'));
     const ksmsPath = path.dirname(require.resolve('karma-source-map-support'));
 
-    addKarmaFiles(config.files, [
-      { pattern: path.join(smsPath, 'browser-source-map-support.js'), watched: false },
-      { pattern: path.join(ksmsPath, 'client.js'), watched: false }
-    ], true);
+    addKarmaFiles(
+      config.files,
+      [
+        { pattern: path.join(smsPath, 'browser-source-map-support.js'), watched: false },
+        { pattern: path.join(ksmsPath, 'client.js'), watched: false },
+      ],
+      true,
+    );
   }
 
   config.reporters.unshift('@angular-devkit/build-angular--event-reporter');
 
   // When using code-coverage, auto-add karma-coverage.
-  if (options.codeCoverage) {
-    config.plugins = config.plugins || [];
-    config.reporters = config.reporters || [];
-    const { plugins, reporters } = config;
-    const hasCoveragePlugin = plugins.some(isPlugin('karma-coverage', 'reporter:coverage'));
-    const hasIstanbulPlugin = plugins.some(isPlugin('karma-coverage-istanbul-reporter', 'reporter:coverage-istanbul'));
-    const hasCoverageReporter = reporters.includes('coverage');
-    const hasIstanbulReporter = reporters.includes('coverage-istanbul');
-    if (hasCoveragePlugin && !hasCoverageReporter) {
-      reporters.push('coverage');
-    } else if (hasIstanbulPlugin && !hasIstanbulReporter) {
-      // coverage-istanbul is deprecated in favor of karma-coverage
-      reporters.push('coverage-istanbul');
-    } else if (!hasCoveragePlugin && !hasIstanbulPlugin) {
-      throw new Error('karma-coverage must be installed in order to run code coverage.');
-    }
-
-    if (hasIstanbulPlugin) {
-      logger.warn(`'karma-coverage-istanbul-reporter' usage has been deprecated since version 11.\n` +
-        `Please install 'karma-coverage' and update 'karma.conf.js.' ` +
-        'For more info, see https://github.com/karma-runner/karma-coverage/blob/master/README.md');
-    }
+  if (
+    options.codeCoverage &&
+    !config.reporters.some((r: string) => r === 'coverage' || r === 'coverage-istanbul')
+  ) {
+    config.reporters.push('coverage');
   }
 
   // Add webpack config.
@@ -115,7 +103,7 @@ const init: any = (config: any, emitter: any) => {
 
   // Use existing config if any.
   config.webpack = { ...webpackConfig, ...config.webpack };
-  config.webpackMiddleware = { ...webpackMiddlewareConfig, ...config.webpackMiddleware }
+  config.webpackMiddleware = { ...webpackMiddlewareConfig, ...config.webpackMiddleware };
 
   // Our custom context and debug files list the webpack bundles directly instead of using
   // the karma files array.
@@ -128,19 +116,13 @@ const init: any = (config: any, emitter: any) => {
   config.middleware = config.middleware || [];
   config.middleware.push('@angular-devkit/build-angular--fallback');
 
-  // The webpack tier owns the watch behavior so we want to force it in the config.
-  // When not in watch mode, webpack-dev-middleware will call `compiler.watch` anyway.
-  // https://github.com/webpack/webpack-dev-middleware/blob/698c9ae5e9bb9a013985add6189ff21c1a1ec185/src/index.js#L65
-  // https://github.com/webpack/webpack/blob/cde1b73e12eb8a77eb9ba42e7920c9ec5d29c2c9/lib/Compiler.js#L379-L388
-  webpackConfig.watch = true;
-
   if (config.singleRun) {
     // There's no option to turn off file watching in webpack-dev-server, but
     // we can override the file watcher instead.
     webpackConfig.plugins.unshift({
-      apply: (compiler: any) => { // tslint:disable-line:no-any
+      apply: (compiler: any) => {
         compiler.hooks.afterEnvironment.tap('karma', () => {
-          compiler.watchFileSystem = { watch: () => { } };
+          compiler.watchFileSystem = { watch: () => {} };
         });
       },
     });
@@ -167,7 +149,7 @@ const init: any = (config: any, emitter: any) => {
 
       // Notify potential listeners of the compile error.
       emitter.emit('compile_error', {
-        errors: statsJson.errors?.map(e => e.message),
+        errors: statsJson.errors?.map((e) => e.message),
       });
 
       // Finish Karma run early in case of compilation error.
@@ -234,12 +216,12 @@ function requestBlocker() {
 // browser log, because it is an utility reporter,
 // unless it's alone in the "reporters" option and base reporter is used.
 function muteDuplicateReporterLogging(context: any, config: any) {
-  context.writeCommonMsg = () => { }
+  context.writeCommonMsg = () => {};
   const reporterName = '@angular/cli';
   const hasTrailingReporters = config.reporters.slice(-1).pop() !== reporterName;
 
   if (hasTrailingReporters) {
-    context.writeCommonMsg = () => { };
+    context.writeCommonMsg = () => {};
   }
 }
 
@@ -255,10 +237,10 @@ const eventReporter: any = function (this: any, baseReporterDecorator: any, conf
     } else {
       failureCb();
     }
-  }
+  };
 
   // avoid duplicate failure message
-  this.specFailure = () => { };
+  this.specFailure = () => {};
 };
 
 eventReporter.$inject = ['baseReporterDecorator', 'config'];
@@ -277,10 +259,10 @@ const sourceMapReporter: any = function (this: any, baseReporterDecorator: any, 
   };
 
   // avoid duplicate complete message
-  this.onRunComplete = () => { };
+  this.onRunComplete = () => {};
 
   // avoid duplicate failure message
-  this.specFailure = () => { };
+  this.specFailure = () => {};
 };
 
 sourceMapReporter.$inject = ['baseReporterDecorator', 'config'];
@@ -296,9 +278,8 @@ function fallbackMiddleware() {
         const alwaysServe = [
           `/${KARMA_APPLICATION_PATH}/runtime.js`,
           `/${KARMA_APPLICATION_PATH}/polyfills.js`,
-          `/${KARMA_APPLICATION_PATH}/polyfills-es5.js`,
           `/${KARMA_APPLICATION_PATH}/scripts.js`,
-          `/${KARMA_APPLICATION_PATH}/styles.js`,
+          `/${KARMA_APPLICATION_PATH}/styles.css`,
           `/${KARMA_APPLICATION_PATH}/vendor.js`,
         ];
         if (request.url && alwaysServe.includes(request.url)) {
@@ -314,36 +295,10 @@ function fallbackMiddleware() {
   };
 }
 
-/**
- * Returns a function that returns true if the plugin identifier matches the
- * `moduleId` or `pluginName`. A plugin identifier can be either a string or
- * an object according to https://karma-runner.github.io/5.2/config/plugins.html
- * @param moduleId name of the node module (e.g. karma-coverage)
- * @param pluginName name of the karma plugin (e.g. reporter:coverage)
- */
-function isPlugin(moduleId: string, pluginName: string) {
-  return (plugin: string | {}): boolean => {
-    if (typeof plugin === 'string') {
-      if (!plugin.includes('*')) {
-        return plugin === moduleId;
-      }
-      const regexp = new RegExp(`^${plugin.replace('*', '.*')}`);
-      if (regexp.test(moduleId)) {
-        try {
-          require.resolve(moduleId);
-          return true;
-        } catch { }
-      }
-      return false;
-    }
-    return pluginName in plugin;
-  }
-}
-
 module.exports = {
   'framework:@angular-devkit/build-angular': ['factory', init],
   'reporter:@angular-devkit/build-angular--sourcemap-reporter': ['type', sourceMapReporter],
   'reporter:@angular-devkit/build-angular--event-reporter': ['type', eventReporter],
   'middleware:@angular-devkit/build-angular--blocker': ['factory', requestBlocker],
-  'middleware:@angular-devkit/build-angular--fallback': ['factory', fallbackMiddleware]
+  'middleware:@angular-devkit/build-angular--fallback': ['factory', fallbackMiddleware],
 };

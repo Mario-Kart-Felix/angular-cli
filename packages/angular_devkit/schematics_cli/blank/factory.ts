@@ -1,58 +1,26 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {
-  JsonAstObject,
-  JsonObject,
-  JsonValue,
-  Path,
-  normalize,
-  parseJsonAst,
-  strings,
-} from '@angular-devkit/core';
+
+import { JsonObject, Path, isJsonObject, normalize, strings } from '@angular-devkit/core';
 import {
   Rule,
   SchematicContext,
   SchematicsException,
   Tree,
-  UpdateRecorder,
   apply,
-  applyTemplates,
   chain,
   mergeWith,
   move,
+  template,
   url,
 } from '@angular-devkit/schematics';
 import { NodePackageInstallTask } from '@angular-devkit/schematics/tasks';
 import { Schema } from './schema';
-
-
-function appendPropertyInAstObject(
-  recorder: UpdateRecorder,
-  node: JsonAstObject,
-  propertyName: string,
-  value: JsonValue,
-  indent = 4,
-) {
-  const indentStr = '\n' + new Array(indent + 1).join(' ');
-
-  if (node.properties.length > 0) {
-    // Insert comma.
-    const last = node.properties[node.properties.length - 1];
-    recorder.insertRight(last.start.offset + last.text.replace(/\s+$/, '').length, ',');
-  }
-
-  recorder.insertLeft(
-    node.end.offset - 1,
-    '  '
-    + `"${propertyName}": ${JSON.stringify(value, null, 2).replace(/\n/g, indentStr)}`
-    + indentStr.slice(0, -2),
-  );
-}
 
 function addSchematicToCollectionJson(
   collectionPath: Path,
@@ -64,29 +32,16 @@ function addSchematicToCollectionJson(
     if (!collectionJsonContent) {
       throw new Error('Invalid collection path: ' + collectionPath);
     }
-    const collectionJsonAst = parseJsonAst(collectionJsonContent.toString('utf-8'));
-    if (collectionJsonAst.kind !== 'object') {
-      throw new Error('Invalid collection content.');
+
+    const collectionJson = JSON.parse(collectionJsonContent.toString());
+    if (!isJsonObject(collectionJson.schematics)) {
+      throw new Error('Invalid collection.json; schematics needs to be an object.');
     }
 
-    for (const property of collectionJsonAst.properties) {
-      if (property.key.value == 'schematics') {
-        if (property.value.kind !== 'object') {
-          throw new Error('Invalid collection.json; schematics needs to be an object.');
-        }
-
-        const recorder = tree.beginUpdate(collectionPath);
-        appendPropertyInAstObject(recorder, property.value, schematicName, description);
-        tree.commitUpdate(recorder);
-
-        return tree;
-      }
-    }
-
-    throw new Error('Could not find the "schematics" property in collection.json.');
+    collectionJson['schematics'][schematicName] = description;
+    tree.overwrite(collectionPath, JSON.stringify(collectionJson, undefined, 2));
   };
 }
-
 
 export default function (options: Schema): Rule {
   const schematicsVersion = require('@angular-devkit/schematics/package.json').version;
@@ -102,9 +57,9 @@ export default function (options: Schema): Rule {
     try {
       const packageJsonContent = tree.read('/package.json');
       if (packageJsonContent) {
-        // In google3 the return value of JSON.parse() must be immediately typed,
-        // otherwise it defaults to `any`, which is prohibited.
-        const packageJson = JSON.parse(packageJsonContent.toString('utf-8')) as { schematics: unknown };
+        const packageJson = JSON.parse(packageJsonContent.toString()) as {
+          schematics: unknown;
+        };
         if (typeof packageJson.schematics === 'string') {
           const p = normalize(packageJson.schematics);
           if (tree.exists(p)) {
@@ -115,22 +70,22 @@ export default function (options: Schema): Rule {
     } catch {}
 
     let source = apply(url('./schematic-files'), [
-        applyTemplates({
-          ...options,
-          coreVersion,
-          schematicsVersion,
-          dot: '.',
-          camelize: strings.camelize,
-          dasherize: strings.dasherize,
-        }),
-      ]);
+      template({
+        ...options,
+        coreVersion,
+        schematicsVersion,
+        dot: '.',
+        camelize: strings.camelize,
+        dasherize: strings.dasherize,
+      }),
+    ]);
 
     // Simply create a new schematic project.
     if (!collectionPath) {
       collectionPath = normalize('/' + options.name + '/src/collection.json');
       source = apply(url('./project-files'), [
-        applyTemplates({
-          ...options as object,
+        template({
+          ...(options as object),
           coreVersion,
           schematicsVersion,
           dot: '.',
@@ -148,8 +103,8 @@ export default function (options: Schema): Rule {
       mergeWith(source),
       addSchematicToCollectionJson(collectionPath, strings.dasherize(options.name), {
         description: 'A blank schematic.',
-        factory: './' + strings.dasherize(options.name) + '/index#' +
-          strings.camelize(options.name),
+        factory:
+          './' + strings.dasherize(options.name) + '/index#' + strings.camelize(options.name),
       }),
     ]);
   };

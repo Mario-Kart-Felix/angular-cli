@@ -27,7 +27,7 @@
     "projects": {
       "type": "object",
       "patternProperties": {
-        "^(?:@[a-zA-Z0-9_-]+\/)?[a-zA-Z0-9_-]+$": {
+        "^(?:@[a-zA-Z0-9_-]+/)?[a-zA-Z0-9_-]+$": {
           "$ref": "#/definitions/project"
         }
       },
@@ -35,9 +35,7 @@
     }
   },
   "additionalProperties": false,
-  "required": [
-    "version"
-  ],
+  "required": ["version"],
   "definitions": {
     "cliOptions": {
       "type": "object",
@@ -49,12 +47,7 @@
         "packageManager": {
           "description": "Specify which package manager tool to use.",
           "type": "string",
-          "enum": [
-            "npm",
-            "cnpm",
-            "yarn",
-            "pnpm"
-          ]
+          "enum": ["npm", "cnpm", "yarn", "pnpm"]
         },
         "warnings": {
           "description": "Control CLI specific console warnings",
@@ -67,10 +60,7 @@
           }
         },
         "analytics": {
-          "type": [
-            "boolean",
-            "string"
-          ],
+          "type": ["boolean", "string"],
           "description": "Share anonymous usage data with the Angular Team at Google."
         },
         "analyticsSharing": {
@@ -79,10 +69,30 @@
             "tracking": {
               "description": "Analytics sharing info tracking ID.",
               "type": "string",
-              "pattern": "^GA-\\d+-\\d+$"
+              "pattern": "^(GA|UA)?-\\d+-\\d+$"
             },
             "uuid": {
               "description": "Analytics sharing info universally unique identifier.",
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "cache": {
+          "description": "Control disk cache.",
+          "type": "object",
+          "properties": {
+            "environment": {
+              "description": "Configure in which environment disk cache is enabled.",
+              "type": "string",
+              "enum": ["local", "ci", "all"]
+            },
+            "enabled": {
+              "description": "Configure whether disk caching is enabled.",
+              "type": "boolean"
+            },
+            "path": {
+              "description": "Cache base path.",
               "type": "string"
             }
           }
@@ -149,7 +159,10 @@
       "type": "object",
       "properties": {
         "cli": {
-          "$ref": "#/definitions/cliOptions"
+          "defaultCollection": {
+            "description": "The default schematics collection to use.",
+            "type": "string"
+          }
         },
         "schematics": {
           "$ref": "#/definitions/schematicOptions"
@@ -173,10 +186,7 @@
         "projectType": {
           "type": "string",
           "description": "Project type.",
-          "enum": [
-            "application",
-            "library"
-          ]
+          "enum": ["application", "library"]
         },
         "architect": {
           "type": "object",
@@ -191,37 +201,23 @@
           }
         }
       },
-      "required": [
-        "root",
-        "projectType"
-      ],
+      "required": ["root", "projectType"],
       "anyOf": [
         {
-          "required": [
-            "architect"
-          ],
+          "required": ["architect"],
           "not": {
-            "required": [
-              "targets"
-            ]
+            "required": ["targets"]
           }
         },
         {
-          "required": [
-            "targets"
-          ],
+          "required": ["targets"],
           "not": {
-            "required": [
-              "architect"
-            ]
+            "required": ["architect"]
           }
         },
         {
           "not": {
-            "required": [
-              "targets",
-              "architect"
-            ]
+            "required": ["targets", "architect"]
           }
         }
       ],
@@ -331,7 +327,6 @@
                       "@angular-devkit/build-angular:karma",
                       "@angular-devkit/build-angular:protractor",
                       "@angular-devkit/build-angular:server",
-                      "@angular-devkit/build-angular:tslint",
                       "@angular-devkit/build-angular:ng-packagr"
                     ]
                   }
@@ -351,12 +346,12 @@
                   }
                 }
               },
-              "required": [
-                "builder"
-              ]
+              "additionalProperties": false,
+              "required": ["builder"]
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:app-shell"
@@ -366,18 +361,19 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/app-shell/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/app-shell/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/app-shell/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/app-shell/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:browser"
@@ -387,18 +383,19 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/browser/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/browser/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/browser/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/browser/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:dev-server"
@@ -408,18 +405,19 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/dev-server/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/dev-server/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/dev-server/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/dev-server/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:extract-i18n"
@@ -429,18 +427,19 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/extract-i18n/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/extract-i18n/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/extract-i18n/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/extract-i18n/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:karma"
@@ -450,18 +449,19 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/karma/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/karma/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/karma/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/karma/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:protractor"
@@ -471,18 +471,19 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/protractor/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/protractor/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/protractor/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/protractor/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
                   "const": "@angular-devkit/build-angular:server"
@@ -492,50 +493,34 @@
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/server/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/server/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/server/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/server/schema.json"
                   }
                 }
               }
             },
             {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "builder": {
-                  "const": "@angular-devkit/build-angular:tslint"
+                  "const": "@angular-devkit/build-angular:ng-packagr"
                 },
                 "defaultConfiguration": {
                   "type": "string",
                   "description": "A default named configuration to use when a target configuration is not provided."
                 },
                 "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/tslint/schema.json"
+                  "$ref": "../../../../angular_devkit/build_angular/src/builders/ng-packagr/schema.json"
                 },
                 "configurations": {
                   "type": "object",
                   "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/tslint/schema.json"
-                  }
-                }
-              }
-            },
-            {
-              "type": "object",
-              "properties": {
-                "builder": {
-                  "const": "@angular-devkit/build-angular:ng-packagr"
-                },
-                "options": {
-                  "$ref": "../../../../angular_devkit/build_angular/src/ng-packagr/schema.json"
-                },
-                "configurations": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "../../../../angular_devkit/build_angular/src/ng-packagr/schema.json"
+                    "$ref": "../../../../angular_devkit/build_angular/src/builders/ng-packagr/schema.json"
                   }
                 }
               }
@@ -561,9 +546,7 @@
           "$ref": "#/definitions/schematicOptions"
         }
       },
-      "required": [
-        "version"
-      ]
+      "required": ["version"]
     }
   }
 }

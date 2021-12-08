@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -8,32 +8,34 @@
 
 import * as fs from 'fs';
 import { join } from 'path';
+import { NormalizedCachedOptions } from '../normalize-cache';
 import { NormalizedOptimizationOptions } from '../normalize-optimization';
 import { stripBom } from '../strip-bom';
-import { CrossOriginValue, FileInfo, augmentIndexHtml } from './augment-index-html';
+import { CrossOriginValue, Entrypoint, FileInfo, augmentIndexHtml } from './augment-index-html';
 import { InlineCriticalCssProcessor } from './inline-critical-css';
 import { InlineFontsProcessor } from './inline-fonts';
 
-type IndexHtmlGeneratorPlugin = (html: string, options: IndexHtmlGeneratorProcessOptions) => Promise<string | IndexHtmlTransformResult>;
+type IndexHtmlGeneratorPlugin = (
+  html: string,
+  options: IndexHtmlGeneratorProcessOptions,
+) => Promise<string | IndexHtmlTransformResult>;
 
 export interface IndexHtmlGeneratorProcessOptions {
   lang: string | undefined;
   baseHref: string | undefined;
   outputPath: string;
   files: FileInfo[];
-  noModuleFiles: FileInfo[];
-  moduleFiles: FileInfo[];
 }
 
 export interface IndexHtmlGeneratorOptions {
   indexPath: string;
   deployUrl?: string;
   sri?: boolean;
-  entrypoints: string[];
+  entrypoints: Entrypoint[];
   postTransform?: IndexHtmlTransform;
   crossOrigin?: CrossOriginValue;
   optimization?: NormalizedOptimizationOptions;
-  WOFFSupportNeeded: boolean;
+  cache?: NormalizedCachedOptions;
 }
 
 export type IndexHtmlTransform = (content: string) => Promise<string>;
@@ -57,11 +59,7 @@ export class IndexHtmlGenerator {
       extraPlugins.push(inlineCriticalCssPlugin(this));
     }
 
-    this.plugins = [
-      augmentIndexHtmlPlugin(this),
-      ...extraPlugins,
-      postTransformPlugin(this),
-    ];
+    this.plugins = [augmentIndexHtmlPlugin(this), ...extraPlugins, postTransformPlugin(this)];
   }
 
   async process(options: IndexHtmlGeneratorProcessOptions): Promise<IndexHtmlTransformResult> {
@@ -103,22 +101,10 @@ export class IndexHtmlGenerator {
 }
 
 function augmentIndexHtmlPlugin(generator: IndexHtmlGenerator): IndexHtmlGeneratorPlugin {
-  const {
-    deployUrl,
-    crossOrigin,
-    sri = false,
-    entrypoints,
-  } = generator.options;
+  const { deployUrl, crossOrigin, sri = false, entrypoints } = generator.options;
 
   return async (html, options) => {
-    const {
-      lang,
-      baseHref,
-      outputPath = '',
-      noModuleFiles,
-      files,
-      moduleFiles,
-    } = options;
+    const { lang, baseHref, outputPath = '', files } = options;
 
     return augmentIndexHtml({
       html,
@@ -128,9 +114,7 @@ function augmentIndexHtmlPlugin(generator: IndexHtmlGenerator): IndexHtmlGenerat
       sri,
       lang,
       entrypoints,
-      loadOutputFile: filePath => generator.readAsset(join(outputPath, filePath)),
-      noModuleFiles,
-      moduleFiles,
+      loadOutputFile: (filePath) => generator.readAsset(join(outputPath, filePath)),
       files,
     });
   };
@@ -139,23 +123,22 @@ function augmentIndexHtmlPlugin(generator: IndexHtmlGenerator): IndexHtmlGenerat
 function inlineFontsPlugin({ options }: IndexHtmlGenerator): IndexHtmlGeneratorPlugin {
   const inlineFontsProcessor = new InlineFontsProcessor({
     minify: options.optimization?.styles.minify,
-    WOFFSupportNeeded: options.WOFFSupportNeeded,
   });
 
-  return async html => inlineFontsProcessor.process(html);
+  return async (html) => inlineFontsProcessor.process(html);
 }
-
 
 function inlineCriticalCssPlugin(generator: IndexHtmlGenerator): IndexHtmlGeneratorPlugin {
   const inlineCriticalCssProcessor = new InlineCriticalCssProcessor({
     minify: generator.options.optimization?.styles.minify,
     deployUrl: generator.options.deployUrl,
-    readAsset: filePath => generator.readAsset(filePath),
+    readAsset: (filePath) => generator.readAsset(filePath),
   });
 
-  return async (html, options) => inlineCriticalCssProcessor.process(html, { outputPath: options.outputPath });
+  return async (html, options) =>
+    inlineCriticalCssProcessor.process(html, { outputPath: options.outputPath });
 }
 
 function postTransformPlugin({ options }: IndexHtmlGenerator): IndexHtmlGeneratorPlugin {
-  return async html => options.postTransform ? options.postTransform(html) : html;
+  return async (html) => (options.postTransform ? options.postTransform(html) : html);
 }

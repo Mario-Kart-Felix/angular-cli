@@ -1,16 +1,21 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { WebpackLoggingCallback } from '@angular-devkit/build-webpack';
 import { logging, tags } from '@angular-devkit/core';
 import * as path from 'path';
-import * as textTable from 'text-table';
+import textTable from 'text-table';
 import { Configuration, StatsCompilation } from 'webpack';
+import { Schema as BrowserBuilderOptions } from '../../builders/browser/schema';
+import { BudgetCalculatorResult } from '../../utils/bundle-calculator';
 import { colors as ansiColors, removeColor } from '../../utils/color';
+import { markAsyncChunksNonInitial } from './async-chunks';
+import { getStatsOptions, normalizeExtraEntryPoints } from './helpers';
 
 export function formatSize(size: number): string {
   if (size <= 0) {
@@ -26,82 +31,120 @@ export function formatSize(size: number): string {
   return `${roundedSize.toFixed(fractionDigits)} ${abbreviations[index]}`;
 }
 
-export type BundleStatsData = [files: string, names: string, size: number | string];
-
-export type ChunkType = 'modern' | 'legacy' | 'unknown';
-
+export type BundleStatsData = [
+  files: string,
+  names: string,
+  rawSize: number | string,
+  estimatedTransferSize: number | string,
+];
 export interface BundleStats {
   initial: boolean;
   stats: BundleStatsData;
-  chunkType: ChunkType;
 }
 
-export function generateBundleStats(
-  info: {
-    size?: number;
-    files?: string[];
-    names?: string[];
-    entry?: boolean;
-    initial?: boolean;
-    rendered?: boolean;
-    chunkType?: ChunkType,
-  },
-): BundleStats {
-  const size = typeof info.size === 'number' ? info.size : '-';
-  const files = info.files?.filter(f => !f.endsWith('.map')).map(f => path.basename(f)).join(', ') ?? '';
+export function generateBundleStats(info: {
+  rawSize?: number;
+  estimatedTransferSize?: number;
+  files?: string[];
+  names?: string[];
+  initial?: boolean;
+  rendered?: boolean;
+}): BundleStats {
+  const rawSize = typeof info.rawSize === 'number' ? info.rawSize : '-';
+  const estimatedTransferSize =
+    typeof info.estimatedTransferSize === 'number' ? info.estimatedTransferSize : '-';
+  const files =
+    info.files
+      ?.filter((f) => !f.endsWith('.map'))
+      .map((f) => path.basename(f))
+      .join(', ') ?? '';
   const names = info.names?.length ? info.names.join(', ') : '-';
-  const initial = !!(info.entry || info.initial);
-  const chunkType = info.chunkType || 'unknown';
+  const initial = !!info.initial;
 
   return {
-    chunkType,
     initial,
-    stats: [files, names, size],
+    stats: [files, names, rawSize, estimatedTransferSize],
   };
 }
 
-function generateBuildStatsTable(data: BundleStats[], colors: boolean, showTotalSize: boolean): string {
-  const g = (x: string) => colors ? ansiColors.greenBright(x) : x;
-  const c = (x: string) => colors ? ansiColors.cyanBright(x) : x;
-  const bold = (x: string) => colors ? ansiColors.bold(x) : x;
-  const dim = (x: string) => colors ? ansiColors.dim(x) : x;
+function generateBuildStatsTable(
+  data: BundleStats[],
+  colors: boolean,
+  showTotalSize: boolean,
+  showEstimatedTransferSize: boolean,
+  budgetFailures?: BudgetCalculatorResult[],
+): string {
+  const g = (x: string) => (colors ? ansiColors.greenBright(x) : x);
+  const c = (x: string) => (colors ? ansiColors.cyanBright(x) : x);
+  const r = (x: string) => (colors ? ansiColors.redBright(x) : x);
+  const y = (x: string) => (colors ? ansiColors.yellowBright(x) : x);
+  const bold = (x: string) => (colors ? ansiColors.bold(x) : x);
+  const dim = (x: string) => (colors ? ansiColors.dim(x) : x);
+
+  const getSizeColor = (name: string, file?: string, defaultColor = c) => {
+    const severity = budgets.get(name) || (file && budgets.get(file));
+    switch (severity) {
+      case 'warning':
+        return y;
+      case 'error':
+        return r;
+      default:
+        return defaultColor;
+    }
+  };
 
   const changedEntryChunksStats: BundleStatsData[] = [];
   const changedLazyChunksStats: BundleStatsData[] = [];
 
-  let initialModernTotalSize = 0;
-  let initialLegacyTotalSize = 0;
-  let modernFileSuffix: string | undefined;
+  let initialTotalRawSize = 0;
+  let initialTotalEstimatedTransferSize;
 
-  for (const { initial, stats, chunkType } of data) {
-    const [files, names, size] = stats;
+  const budgets = new Map<string, string>();
+  if (budgetFailures) {
+    for (const { label, severity } of budgetFailures) {
+      // In some cases a file can have multiple budget failures.
+      // Favor error.
+      if (label && (!budgets.has(label) || budgets.get(label) === 'warning')) {
+        budgets.set(label, severity);
+      }
+    }
+  }
 
-    const data: BundleStatsData = [
-      g(files),
-      names,
-      c(typeof size === 'number' ? formatSize(size) : size),
-    ];
+  for (const { initial, stats } of data) {
+    const [files, names, rawSize, estimatedTransferSize] = stats;
+    const getRawSizeColor = getSizeColor(names, files);
+    let data: BundleStatsData;
+
+    if (showEstimatedTransferSize) {
+      data = [
+        g(files),
+        names,
+        getRawSizeColor(typeof rawSize === 'number' ? formatSize(rawSize) : rawSize),
+        c(
+          typeof estimatedTransferSize === 'number'
+            ? formatSize(estimatedTransferSize)
+            : estimatedTransferSize,
+        ),
+      ];
+    } else {
+      data = [
+        g(files),
+        names,
+        getRawSizeColor(typeof rawSize === 'number' ? formatSize(rawSize) : rawSize),
+        '',
+      ];
+    }
 
     if (initial) {
       changedEntryChunksStats.push(data);
-
-      if (typeof size === 'number') {
-        switch (chunkType) {
-          case 'modern':
-            initialModernTotalSize += size;
-            if (!modernFileSuffix) {
-              const match = files.match(/-(es20\d{2}|esnext)/);
-              modernFileSuffix = match?.[1].toString().toUpperCase();
-            }
-            break;
-          case 'legacy':
-            initialLegacyTotalSize += size;
-            break;
-          default:
-            initialModernTotalSize += size;
-            initialLegacyTotalSize += size;
-            break;
+      if (typeof rawSize === 'number') {
+        initialTotalRawSize += rawSize;
+      }
+      if (showEstimatedTransferSize && typeof estimatedTransferSize === 'number') {
+        if (initialTotalEstimatedTransferSize === undefined) {
+          initialTotalEstimatedTransferSize = 0;
         }
+        initialTotalEstimatedTransferSize += estimatedTransferSize;
       }
     } else {
       changedLazyChunksStats.push(data);
@@ -109,24 +152,35 @@ function generateBuildStatsTable(data: BundleStats[], colors: boolean, showTotal
   }
 
   const bundleInfo: (string | number)[][] = [];
+  const baseTitles = ['Names', 'Raw Size'];
+  const tableAlign: ('l' | 'r')[] = ['l', 'l', 'r'];
+
+  if (showEstimatedTransferSize) {
+    baseTitles.push('Estimated Transfer Size');
+    tableAlign.push('r');
+  }
 
   // Entry chunks
   if (changedEntryChunksStats.length) {
-    bundleInfo.push(
-      ['Initial Chunk Files', 'Names', 'Size'].map(bold),
-      ...changedEntryChunksStats,
-    );
+    bundleInfo.push(['Initial Chunk Files', ...baseTitles].map(bold), ...changedEntryChunksStats);
 
     if (showTotalSize) {
       bundleInfo.push([]);
-      if (initialModernTotalSize === initialLegacyTotalSize) {
-        bundleInfo.push([' ', 'Initial Total', formatSize(initialModernTotalSize)].map(bold));
-      } else {
-        bundleInfo.push(
-          [' ', 'Initial ES5 Total', formatSize(initialLegacyTotalSize)].map(bold),
-          [' ', `Initial ${modernFileSuffix} Total`, formatSize(initialModernTotalSize)].map(bold),
+
+      const initialSizeTotalColor = getSizeColor('bundle initial', undefined, (x) => x);
+      const totalSizeElements = [
+        ' ',
+        'Initial Total',
+        initialSizeTotalColor(formatSize(initialTotalRawSize)),
+      ];
+      if (showEstimatedTransferSize) {
+        totalSizeElements.push(
+          typeof initialTotalEstimatedTransferSize === 'number'
+            ? formatSize(initialTotalEstimatedTransferSize)
+            : '-',
         );
       }
+      bundleInfo.push(totalSizeElements.map(bold));
     }
   }
 
@@ -137,48 +191,79 @@ function generateBuildStatsTable(data: BundleStats[], colors: boolean, showTotal
 
   // Lazy chunks
   if (changedLazyChunksStats.length) {
-    bundleInfo.push(
-      ['Lazy Chunk Files', 'Names', 'Size'].map(bold),
-      ...changedLazyChunksStats,
-    );
+    bundleInfo.push(['Lazy Chunk Files', ...baseTitles].map(bold), ...changedLazyChunksStats);
   }
 
   return textTable(bundleInfo, {
     hsep: dim(' | '),
-    stringLength: s => removeColor(s).length,
-    align: ['l', 'l', 'r'],
+    stringLength: (s) => removeColor(s).length,
+    align: tableAlign,
   });
 }
 
 function generateBuildStats(hash: string, time: number, colors: boolean): string {
-  const w = (x: string) => colors ? ansiColors.bold.white(x) : x;
+  const w = (x: string) => (colors ? ansiColors.bold.white(x) : x);
 
   return `Build at: ${w(new Date().toISOString())} - Hash: ${w(hash)} - Time: ${w('' + time)}ms`;
 }
 
-// tslint:disable-next-line: no-any
-function statsToString(json: StatsCompilation, statsConfig: any, bundleState?: BundleStats[]): string {
+// We use this cache because we can have multiple builders running in the same process,
+// where each builder has different output path.
+
+// Ideally, we should create the logging callback as a factory, but that would need a refactoring.
+const runsCache = new Set<string>();
+
+function statsToString(
+  json: StatsCompilation,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  statsConfig: any,
+  budgetFailures?: BudgetCalculatorResult[],
+): string {
   if (!json.chunks?.length) {
     return '';
   }
 
   const colors = statsConfig.colors;
-  const rs = (x: string) => colors ? ansiColors.reset(x) : x;
+  const rs = (x: string) => (colors ? ansiColors.reset(x) : x);
 
-  const changedChunksStats: BundleStats[] = bundleState ?? [];
+  const changedChunksStats: BundleStats[] = [];
   let unchangedChunkNumber = 0;
-  if (!bundleState?.length) {
-    for (const chunk of json.chunks) {
-      if (!chunk.rendered) {
-        continue;
-      }
+  let hasEstimatedTransferSizes = false;
 
-      const assets = json.assets?.filter(asset => chunk.files?.includes(asset.name));
-      const summedSize = assets?.filter(asset => !asset.name.endsWith('.map')).reduce((total, asset) => total + asset.size, 0);
-      changedChunksStats.push(generateBundleStats({ ...chunk, size: summedSize }));
+  const isFirstRun = !runsCache.has(json.outputPath || '');
+
+  for (const chunk of json.chunks) {
+    // During first build we want to display unchanged chunks
+    // but unchanged cached chunks are always marked as not rendered.
+    if (!isFirstRun && !chunk.rendered) {
+      continue;
     }
-    unchangedChunkNumber = json.chunks.length - changedChunksStats.length;
+
+    const assets = json.assets?.filter((asset) => chunk.files?.includes(asset.name));
+    let rawSize = 0;
+    let estimatedTransferSize;
+    if (assets) {
+      for (const asset of assets) {
+        if (asset.name.endsWith('.map')) {
+          continue;
+        }
+
+        rawSize += asset.size;
+
+        if (typeof asset.info.estimatedTransferSize === 'number') {
+          if (estimatedTransferSize === undefined) {
+            estimatedTransferSize = 0;
+            hasEstimatedTransferSizes = true;
+          }
+          estimatedTransferSize += asset.info.estimatedTransferSize;
+        }
+      }
+    }
+    changedChunksStats.push(generateBundleStats({ ...chunk, rawSize, estimatedTransferSize }));
   }
+  unchangedChunkNumber = json.chunks.length - changedChunksStats.length;
+
+  runsCache.add(json.outputPath || '');
 
   // Sort chunks by size in descending order
   changedChunksStats.sort((a, b) => {
@@ -193,54 +278,55 @@ function statsToString(json: StatsCompilation, statsConfig: any, bundleState?: B
     return 0;
   });
 
-  const statsTable = generateBuildStatsTable(changedChunksStats, colors, unchangedChunkNumber === 0);
+  const statsTable = generateBuildStatsTable(
+    changedChunksStats,
+    colors,
+    unchangedChunkNumber === 0,
+    hasEstimatedTransferSizes,
+    budgetFailures,
+  );
 
   // In some cases we do things outside of webpack context
   // Such us index generation, service worker augmentation etc...
   // This will correct the time and include these.
   let time = 0;
   if (json.builtAt !== undefined && json.time !== undefined) {
-    time = (Date.now() - json.builtAt) + json.time;
+    time = Date.now() - json.builtAt + json.time;
   }
 
   if (unchangedChunkNumber > 0) {
-    return '\n' + rs(tags.stripIndents`
+    return (
+      '\n' +
+      rs(tags.stripIndents`
       ${statsTable}
 
       ${unchangedChunkNumber} unchanged chunks
 
       ${generateBuildStats(json.hash || '', time, colors)}
-      `);
+      `)
+    );
   } else {
-    return '\n' + rs(tags.stripIndents`
+    return (
+      '\n' +
+      rs(tags.stripIndents`
       ${statsTable}
 
       ${generateBuildStats(json.hash || '', time, colors)}
-      `);
+      `)
+    );
   }
 }
 
-export const IGNORE_WARNINGS = [
-  // Webpack 5+ has no facility to disable this warning.
-  // System.import is used in @angular/core for deprecated string-form lazy routes
-  /System.import\(\) is deprecated and will be removed soon/i,
-  // https://github.com/webpack-contrib/source-map-loader/blob/b2de4249c7431dd8432da607e08f0f65e9d64219/src/index.js#L83
-  /Failed to parse source map from/,
-];
-
-// tslint:disable-next-line: no-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function statsWarningsToString(json: StatsCompilation, statsConfig: any): string {
   const colors = statsConfig.colors;
-  const c = (x: string) => colors ? ansiColors.reset.cyan(x) : x;
-  const y = (x: string) => colors ? ansiColors.reset.yellow(x) : x;
-  const yb = (x: string) => colors ? ansiColors.reset.yellowBright(x) : x;
+  const c = (x: string) => (colors ? ansiColors.reset.cyan(x) : x);
+  const y = (x: string) => (colors ? ansiColors.reset.yellow(x) : x);
+  const yb = (x: string) => (colors ? ansiColors.reset.yellowBright(x) : x);
 
   const warnings = json.warnings ? [...json.warnings] : [];
   if (json.children) {
-    warnings.push(...json.children
-      .map(c => c.warnings ?? [])
-      .reduce((a, b) => [...a, ...b], []),
-    );
+    warnings.push(...json.children.map((c) => c.warnings ?? []).reduce((a, b) => [...a, ...b], []));
   }
 
   let output = '';
@@ -266,19 +352,16 @@ export function statsWarningsToString(json: StatsCompilation, statsConfig: any):
   return output ? '\n' + output : output;
 }
 
-// tslint:disable-next-line: no-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function statsErrorsToString(json: StatsCompilation, statsConfig: any): string {
   const colors = statsConfig.colors;
-  const c = (x: string) => colors ? ansiColors.reset.cyan(x) : x;
-  const yb = (x: string) => colors ? ansiColors.reset.yellowBright(x) : x;
-  const r = (x: string) => colors ? ansiColors.reset.redBright(x) : x;
+  const c = (x: string) => (colors ? ansiColors.reset.cyan(x) : x);
+  const yb = (x: string) => (colors ? ansiColors.reset.yellowBright(x) : x);
+  const r = (x: string) => (colors ? ansiColors.reset.redBright(x) : x);
 
   const errors = json.errors ? [...json.errors] : [];
   if (json.children) {
-    errors.push(...json.children
-      .map(c => c?.errors || [])
-      .reduce((a, b) => [...a, ...b], []),
-    );
+    errors.push(...json.children.map((c) => c?.errors || []).reduce((a, b) => [...a, ...b], []));
   }
 
   let output = '';
@@ -305,33 +388,35 @@ export function statsErrorsToString(json: StatsCompilation, statsConfig: any): s
 }
 
 export function statsHasErrors(json: StatsCompilation): boolean {
-  return !!(json.errors?.length || json.children?.some(c => c.errors?.length));
+  return !!(json.errors?.length || json.children?.some((c) => c.errors?.length));
 }
 
 export function statsHasWarnings(json: StatsCompilation): boolean {
-  return !!(json.warnings?.length || json.children?.some(c => c.warnings?.length));
+  return !!(json.warnings?.length || json.children?.some((c) => c.warnings?.length));
 }
 
 export function createWebpackLoggingCallback(
-  verbose: boolean,
+  options: BrowserBuilderOptions,
   logger: logging.LoggerApi,
 ): WebpackLoggingCallback {
+  const { verbose = false, scripts = [], styles = [] } = options;
+  const extraEntryPoints = [
+    ...normalizeExtraEntryPoints(styles, 'styles'),
+    ...normalizeExtraEntryPoints(scripts, 'scripts'),
+  ];
+
   return (stats, config) => {
     if (verbose) {
       logger.info(stats.toString(config.stats));
     }
 
-    webpackStatsLogger(
-      logger,
-      stats.toJson({
-        errors: true,
-        warnings: true,
-        builtAt: true,
-        assets: true,
-        chunks: true,
-      }),
-      config,
-    );
+    const rawStats = stats.toJson(getStatsOptions(false));
+    const webpackStats = {
+      ...rawStats,
+      chunks: markAsyncChunksNonInitial(rawStats, extraEntryPoints),
+    };
+
+    webpackStatsLogger(logger, webpackStats, config);
   };
 }
 
@@ -339,9 +424,9 @@ export function webpackStatsLogger(
   logger: logging.LoggerApi,
   json: StatsCompilation,
   config: Configuration,
-  bundleStats?: BundleStats[],
+  budgetFailures?: BudgetCalculatorResult[],
 ): void {
-  logger.info(statsToString(json, config.stats, bundleStats));
+  logger.info(statsToString(json, config.stats, budgetFailures));
 
   if (statsHasWarnings(json)) {
     logger.warn(statsWarningsToString(json, config.stats));

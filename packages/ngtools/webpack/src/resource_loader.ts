@@ -1,15 +1,22 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { createHash } from 'crypto';
 import * as path from 'path';
 import * as vm from 'vm';
-import { Compilation, EntryPlugin, NormalModule, library, node, sources } from 'webpack';
+import type { Asset, Compilation } from 'webpack';
 import { normalizePath } from './ivy/paths';
+import {
+  CompilationWithInlineAngularResource,
+  InlineAngularResourceLoaderPath,
+  InlineAngularResourceSymbol,
+} from './loaders/inline-resource';
+import { NG_COMPONENT_RESOURCE_QUERY } from './transformers/replace_resources';
 
 interface CompilationOutput {
   content: string;
@@ -23,34 +30,53 @@ export class WebpackResourceLoader {
   private _reverseDependencies = new Map<string, Set<string>>();
 
   private fileCache?: Map<string, CompilationOutput>;
-  private inlineCache?: Map<string, CompilationOutput>;
+  private assetCache?: Map<string, Asset>;
+
   private modifiedResources = new Set<string>();
   private outputPathCounter = 1;
+
+  private readonly inlineDataLoaderPath = InlineAngularResourceLoaderPath;
 
   constructor(shouldCache: boolean) {
     if (shouldCache) {
       this.fileCache = new Map();
-      this.inlineCache = new Map();
+      this.assetCache = new Map();
     }
   }
 
-  update(
-    parentCompilation: Compilation,
-    changedFiles?: Iterable<string>,
-  ) {
+  update(parentCompilation: Compilation, changedFiles?: Iterable<string>) {
     this._parentCompilation = parentCompilation;
 
     // Update resource cache and modified resources
     this.modifiedResources.clear();
+
     if (changedFiles) {
       for (const changedFile of changedFiles) {
+        const changedFileNormalized = normalizePath(changedFile);
+        this.assetCache?.delete(changedFileNormalized);
+
         for (const affectedResource of this.getAffectedResources(changedFile)) {
-          this.fileCache?.delete(normalizePath(affectedResource));
+          const affectedResourceNormalized = normalizePath(affectedResource);
+          this.fileCache?.delete(affectedResourceNormalized);
           this.modifiedResources.add(affectedResource);
+
+          for (const effectedDependencies of this.getResourceDependencies(
+            affectedResourceNormalized,
+          )) {
+            this.assetCache?.delete(normalizePath(effectedDependencies));
+          }
         }
       }
     } else {
       this.fileCache?.clear();
+      this.assetCache?.clear();
+    }
+
+    // Re-emit all assets for un-effected files
+    if (this.assetCache) {
+      for (const [, { name, source, info }] of this.assetCache) {
+        this._parentCompilation.emitAsset(name, source, info);
+      }
     }
   }
 
@@ -77,24 +103,45 @@ export class WebpackResourceLoader {
   private async _compile(
     filePath?: string,
     data?: string,
-    mimeType?: string,
+    fileExtension?: string,
+    resourceType?: 'style' | 'template',
+    containingFile?: string,
   ): Promise<CompilationOutput> {
     if (!this._parentCompilation) {
       throw new Error('WebpackResourceLoader cannot be used without parentCompilation');
     }
 
-    // Create a special URL for reading the resource from memory
-    const entry = data ? 'angular-resource://' : filePath;
-    if (!entry) {
-      throw new Error(`"filePath" or "data" must be specified.`);
-    }
+    const getEntry = (): string => {
+      if (filePath) {
+        return `${filePath}?${NG_COMPONENT_RESOURCE_QUERY}`;
+      } else if (resourceType) {
+        return (
+          // app.component.ts-2.css?ngResource!=!@ngtools/webpack/src/loaders/inline-resource.js!app.component.ts
+          `${containingFile}-${this.outputPathCounter}.${fileExtension}` +
+          `?${NG_COMPONENT_RESOURCE_QUERY}!=!${this.inlineDataLoaderPath}!${containingFile}`
+        );
+      } else if (data) {
+        // Create a special URL for reading the resource from memory
+        return `angular-resource:${resourceType},${createHash('md5').update(data).digest('hex')}`;
+      }
+
+      throw new Error(`"filePath", "resourceType" or "data" must be specified.`);
+    };
+
+    const entry = getEntry();
 
     // Simple sanity check.
     if (filePath?.match(/\.[jt]s$/)) {
-      throw new Error(`Cannot use a JavaScript or TypeScript file (${filePath}) in a component's styleUrls or templateUrl.`);
+      throw new Error(
+        `Cannot use a JavaScript or TypeScript file (${filePath}) in a component's styleUrls or templateUrl.`,
+      );
     }
 
-    const outputFilePath = filePath || `angular-resource-output-${this.outputPathCounter++}.css`;
+    const outputFilePath =
+      filePath ||
+      `${containingFile}-angular-inline--${this.outputPathCounter++}.${
+        resourceType === 'template' ? 'html' : 'css'
+      }`;
     const outputOptions = {
       filename: outputFilePath,
       library: {
@@ -103,7 +150,8 @@ export class WebpackResourceLoader {
       },
     };
 
-    const context = this._parentCompilation.compiler.context;
+    const { context, webpack } = this._parentCompilation.compiler;
+    const { EntryPlugin, NormalModule, library, node, sources } = webpack;
     const childCompiler = this._parentCompilation.createChildCompiler(
       'angular-compiler:resource',
       outputOptions,
@@ -128,15 +176,13 @@ export class WebpackResourceLoader {
                 resourceData.resource = filePath;
               }
 
-              if (mimeType) {
-                resourceData.data.mimetype = mimeType;
-              }
-
               return true;
             });
           NormalModule.getCompilationHooks(compilation)
             .readResourceForScheme.for('angular-resource')
             .tap('angular-compiler', () => data);
+
+          (compilation as CompilationWithInlineAngularResource)[InlineAngularResourceSymbol] = data;
         }
 
         compilation.hooks.additionalAssets.tap('angular-compiler', () => {
@@ -160,16 +206,17 @@ export class WebpackResourceLoader {
     );
 
     let finalContent: string | undefined;
-    let finalMap: string | undefined;
     childCompiler.hooks.compilation.tap('angular-compiler', (childCompilation) => {
       childCompilation.hooks.processAssets.tap(
-        { name: 'angular-compiler', stage: Compilation.PROCESS_ASSETS_STAGE_REPORT },
+        { name: 'angular-compiler', stage: webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT },
         () => {
           finalContent = childCompilation.assets[outputFilePath]?.source().toString();
-          finalMap = childCompilation.assets[outputFilePath + '.map']?.source().toString();
 
-          delete childCompilation.assets[outputFilePath];
-          delete childCompilation.assets[outputFilePath + '.map'];
+          for (const { files } of childCompilation.chunks) {
+            for (const file of files) {
+              childCompilation.deleteAsset(file);
+            }
+          }
         },
       );
     });
@@ -192,34 +239,56 @@ export class WebpackResourceLoader {
         const parent = childCompiler.parentCompilation;
         if (parent) {
           parent.children = parent.children.filter((child) => child !== childCompilation);
+          let fileDependencies: Set<string> | undefined;
 
-          parent.fileDependencies.addAll(childCompilation.fileDependencies);
+          for (const dependency of childCompilation.fileDependencies) {
+            // Skip paths that do not appear to be files (have no extension).
+            // `fileDependencies` can contain directories and not just files which can
+            // cause incorrect cache invalidation on rebuilds.
+            if (!path.extname(dependency)) {
+              continue;
+            }
+
+            if (data && containingFile && dependency.endsWith(entry)) {
+              // use containing file if the resource was inline
+              parent.fileDependencies.add(containingFile);
+            } else {
+              parent.fileDependencies.add(dependency);
+            }
+
+            // Save the dependencies for this resource.
+            if (filePath) {
+              const resolvedFile = normalizePath(dependency);
+              const entry = this._reverseDependencies.get(resolvedFile);
+              if (entry) {
+                entry.add(filePath);
+              } else {
+                this._reverseDependencies.set(resolvedFile, new Set([filePath]));
+              }
+
+              if (fileDependencies) {
+                fileDependencies.add(dependency);
+              } else {
+                fileDependencies = new Set([dependency]);
+                this._fileDependencies.set(filePath, fileDependencies);
+              }
+            }
+          }
+
           parent.contextDependencies.addAll(childCompilation.contextDependencies);
           parent.missingDependencies.addAll(childCompilation.missingDependencies);
           parent.buildDependencies.addAll(childCompilation.buildDependencies);
 
           parent.warnings.push(...childCompilation.warnings);
           parent.errors.push(...childCompilation.errors);
-        }
 
-        // Save the dependencies for this resource.
-        if (filePath) {
-          this._fileDependencies.set(filePath, new Set(childCompilation.fileDependencies));
-          for (const file of childCompilation.fileDependencies) {
-            const resolvedFile = normalizePath(file);
+          if (this.assetCache) {
+            for (const { info, name, source } of childCompilation.getAssets()) {
+              // Use the originating file as the cache key if present
+              // Otherwise, generate a cache key based on the generated name
+              const cacheKey = info.sourceFilename ?? `!![GENERATED]:${name}`;
 
-            // Skip paths that do not appear to be files (have no extension).
-            // `fileDependencies` can contain directories and not just files which can
-            // cause incorrect cache invalidation on rebuilds.
-            if (!path.extname(resolvedFile)) {
-              continue;
-            }
-
-            const entry = this._reverseDependencies.get(resolvedFile);
-            if (entry) {
-              entry.add(filePath);
-            } else {
-              this._reverseDependencies.set(resolvedFile, new Set([filePath]));
+              this.assetCache.set(cacheKey, { info, name, source });
             }
           }
         }
@@ -269,21 +338,23 @@ export class WebpackResourceLoader {
     return compilationResult.content;
   }
 
-  async process(data: string, mimeType: string): Promise<string> {
+  async process(
+    data: string,
+    fileExtension: string | undefined,
+    resourceType: 'template' | 'style',
+    containingFile?: string,
+  ): Promise<string> {
     if (data.trim().length === 0) {
       return '';
     }
 
-    const cacheKey = createHash('md5').update(data).digest('hex');
-    let compilationResult = this.inlineCache?.get(cacheKey);
-
-    if (compilationResult === undefined) {
-      compilationResult = await this._compile(undefined, data, mimeType);
-
-      if (this.inlineCache && compilationResult.success) {
-        this.inlineCache.set(cacheKey, compilationResult);
-      }
-    }
+    const compilationResult = await this._compile(
+      undefined,
+      data,
+      fileExtension,
+      resourceType,
+      containingFile,
+    );
 
     return compilationResult.content;
   }

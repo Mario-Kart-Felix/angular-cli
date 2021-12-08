@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -10,21 +10,25 @@ import { JsonValue, tags } from '@angular-devkit/core';
 import { v4 as uuidV4 } from 'uuid';
 import { Command } from '../models/command';
 import { Arguments, CommandScope } from '../models/interface';
-import {
-  getWorkspaceRaw,
-  migrateLegacyGlobalConfig,
-  validateWorkspace,
-} from '../utilities/config';
+import { getWorkspaceRaw, migrateLegacyGlobalConfig, validateWorkspace } from '../utilities/config';
 import { JSONFile, parseJson } from '../utilities/json-file';
 import { Schema as ConfigCommandSchema } from './config';
 
-const validCliPaths = new Map<string, ((arg: string | number | boolean | undefined) => string) | undefined>([
+const validCliPaths = new Map<
+  string,
+  ((arg: string | number | boolean | undefined) => string) | undefined
+>([
   ['cli.warnings.versionMismatch', undefined],
   ['cli.defaultCollection', undefined],
   ['cli.packageManager', undefined],
   ['cli.analytics', undefined],
+
   ['cli.analyticsSharing.tracking', undefined],
-  ['cli.analyticsSharing.uuid', v => v ? `${v}` : uuidV4()],
+  ['cli.analyticsSharing.uuid', (v) => (v === '' ? uuidV4() : `${v}`)],
+
+  ['cli.cache.enabled', undefined],
+  ['cli.cache.environment', undefined],
+  ['cli.cache.path', undefined],
 ]);
 
 /**
@@ -45,7 +49,7 @@ function parseJsonPath(path: string): (string | number)[] {
       break;
     }
 
-    const match = fragment.match(/([^\[]+)((\[.*\])*)/);
+    const match = fragment.match(/([^[]+)((\[.*\])*)/);
     if (!match) {
       throw new Error('Invalid JSON path.');
     }
@@ -55,25 +59,40 @@ function parseJsonPath(path: string): (string | number)[] {
       const indices = match[2]
         .slice(1, -1)
         .split('][')
-        .map(x => (/^\d$/.test(x) ? +x : x.replace(/\"|\'/g, '')));
+        .map((x) => (/^\d$/.test(x) ? +x : x.replace(/"|'/g, '')));
       result.push(...indices);
     }
   }
 
-  return result.filter(fragment => fragment != null);
+  return result.filter((fragment) => fragment != null);
 }
 
 function normalizeValue(value: string | undefined | boolean | number): JsonValue | undefined {
   const valueString = `${value}`.trim();
-  if (valueString === 'true') {
-    return true;
-  } else if (valueString === 'false') {
-    return false;
-  } else if (isFinite(+valueString)) {
+  switch (valueString) {
+    case 'true':
+      return true;
+    case 'false':
+      return false;
+    case 'null':
+      return null;
+    case 'undefined':
+      return undefined;
+  }
+
+  if (isFinite(+valueString)) {
     return +valueString;
   }
 
-  return value || undefined;
+  try {
+    // We use `JSON.parse` instead of `parseJson` because the latter will parse UUIDs
+    // and convert them into a numberic entities.
+    // Example: 73b61974-182c-48e4-b4c6-30ddf08c5c98 -> 73.
+    // These values should never contain comments, therefore using `JSON.parse` is safe.
+    return JSON.parse(valueString);
+  } catch {
+    return value;
+  }
 }
 
 export class ConfigCommand extends Command<ConfigCommandSchema> {
@@ -94,7 +113,7 @@ export class ConfigCommand extends Command<ConfigCommandSchema> {
             We found a global configuration that was used in Angular CLI 1.
             It has been automatically migrated.`);
         }
-      } catch { }
+      } catch {}
     }
 
     if (options.value == undefined) {

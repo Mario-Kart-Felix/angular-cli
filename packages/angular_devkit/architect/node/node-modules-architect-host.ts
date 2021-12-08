@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { json, workspaces } from '@angular-devkit/core';
 import * as path from 'path';
 import { deserialize, serialize } from 'v8';
@@ -90,12 +91,13 @@ export class WorkspaceNodeModulesArchitectHost implements ArchitectHost<NodeModu
             throw new Error(`Project "${project}" does not exist.`);
           }
 
-          return ({
+          return {
             root: projectDefinition.root,
             sourceRoot: projectDefinition.sourceRoot,
             prefix: projectDefinition.prefix,
+            ...(clone(workspaceOrHost.extensions) as {}),
             ...(clone(projectDefinition.extensions) as {}),
-          } as unknown) as json.JsonObject;
+          } as unknown as json.JsonObject;
         },
         async hasTarget(project, target) {
           return !!workspaceOrHost.projects.get(project)?.targets.has(target);
@@ -171,14 +173,15 @@ export class WorkspaceNodeModulesArchitectHost implements ArchitectHost<NodeModu
 
     let options = await this.workspaceHost.getOptions(target.project, target.target);
     const targetConfiguration =
-      target.configuration || await this.workspaceHost.getDefaultConfigurationName(target.project, target.target);
+      target.configuration ||
+      (await this.workspaceHost.getDefaultConfigurationName(target.project, target.target));
 
     if (targetConfiguration) {
       const configurations = targetConfiguration.split(',').map((c) => c.trim());
       for (const configuration of configurations) {
         options = {
           ...options,
-          ...await this.workspaceHost.getOptions(target.project, target.target, configuration),
+          ...(await this.workspaceHost.getOptions(target.project, target.target, configuration)),
         };
       }
     }
@@ -197,6 +200,11 @@ export class WorkspaceNodeModulesArchitectHost implements ArchitectHost<NodeModu
     const builder = (await import(info.import)).default;
     if (builder[BuilderSymbol]) {
       return builder;
+    }
+
+    // Default handling code is for old builders that incorrectly export `default` with non-ESM module
+    if (builder?.default[BuilderSymbol]) {
+      return builder.default;
     }
 
     throw new Error('Builder is not a builder');

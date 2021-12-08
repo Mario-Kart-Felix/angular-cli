@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import type { Compiler, Module } from 'webpack';
 
 interface ModuleData {
@@ -13,8 +14,7 @@ interface ModuleData {
 
 export class BuildOptimizerWebpackPlugin {
   apply(compiler: Compiler) {
-    compiler.hooks.normalModuleFactory.tap('BuildOptimizerWebpackPlugin', nmf => {
-      // tslint:disable-next-line: no-any
+    compiler.hooks.normalModuleFactory.tap('BuildOptimizerWebpackPlugin', (nmf) => {
       nmf.hooks.module.tap('BuildOptimizerWebpackPlugin', (module: Module, data: ModuleData) => {
         if (data.resourceResolveData?.descriptionFileData) {
           // Only TS packages should use Build Optimizer.

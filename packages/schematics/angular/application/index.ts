@@ -1,21 +1,16 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {
-  JsonObject,
-  join,
-  normalize,
-  strings,
-} from '@angular-devkit/core';
+
+import { JsonObject, join, normalize, strings } from '@angular-devkit/core';
 import {
   MergeStrategy,
   Rule,
   SchematicContext,
-  SchematicsException,
   Tree,
   apply,
   applyTemplates,
@@ -31,9 +26,7 @@ import { NodePackageInstallTask } from '@angular-devkit/schematics/tasks';
 import { Schema as ComponentOptions } from '../component/schema';
 import { NodeDependencyType, addPackageJsonDependency } from '../utility/dependencies';
 import { latestVersions } from '../utility/latest-versions';
-import { applyLintFix } from '../utility/lint-fix';
 import { relativePathToWorkspaceRoot } from '../utility/paths';
-import { validateProjectName } from '../utility/validation';
 import { getWorkspace, updateWorkspace } from '../utility/workspace';
 import { Builders, ProjectType } from '../utility/workspace-models';
 import { Schema as ApplicationOptions, Style } from './schema';
@@ -54,9 +47,9 @@ function addDependenciesToPackageJson(options: ApplicationOptions) {
       {
         type: NodeDependencyType.Dev,
         name: 'typescript',
-        version: latestVersions.TypeScript,
+        version: latestVersions['typescript'],
       },
-    ].forEach(dependency => addPackageJsonDependency(host, dependency));
+    ].forEach((dependency) => addPackageJsonDependency(host, dependency));
 
     if (!options.skipInstall) {
       context.addTask(new NodePackageInstallTask());
@@ -66,7 +59,11 @@ function addDependenciesToPackageJson(options: ApplicationOptions) {
   };
 }
 
-function addAppToWorkspaceFile(options: ApplicationOptions, appDir: string): Rule {
+function addAppToWorkspaceFile(
+  options: ApplicationOptions,
+  appDir: string,
+  folderName: string,
+): Rule {
   let projectRoot = appDir;
   if (projectRoot) {
     projectRoot += '/';
@@ -74,10 +71,12 @@ function addAppToWorkspaceFile(options: ApplicationOptions, appDir: string): Rul
 
   const schematics: JsonObject = {};
 
-  if (options.inlineTemplate
-    || options.inlineStyle
-    || options.minimal
-    || options.style !== Style.Css) {
+  if (
+    options.inlineTemplate ||
+    options.inlineStyle ||
+    options.minimal ||
+    options.style !== Style.Css
+  ) {
     const componentSchematicsOptions: JsonObject = {};
     if (options.inlineTemplate ?? options.minimal) {
       componentSchematicsOptions.inlineTemplate = true;
@@ -93,12 +92,14 @@ function addAppToWorkspaceFile(options: ApplicationOptions, appDir: string): Rul
   }
 
   if (options.skipTests || options.minimal) {
-    ['class', 'component', 'directive', 'guard', 'interceptor', 'module', 'pipe', 'service'].forEach((type) => {
-      if (!(`@schematics/angular:${type}` in schematics)) {
-        schematics[`@schematics/angular:${type}`] = {};
-      }
-      (schematics[`@schematics/angular:${type}`] as JsonObject).skipTests = true;
-    });
+    ['class', 'component', 'directive', 'guard', 'interceptor', 'pipe', 'service'].forEach(
+      (type) => {
+        if (!(`@schematics/angular:${type}` in schematics)) {
+          schematics[`@schematics/angular:${type}`] = {};
+        }
+        (schematics[`@schematics/angular:${type}`] as JsonObject).skipTests = true;
+      },
+    );
   }
 
   if (options.strict) {
@@ -139,9 +140,7 @@ function addAppToWorkspaceFile(options: ApplicationOptions, appDir: string): Rul
     ];
   }
 
-  const inlineStyleLanguage = options?.style !== Style.Css
-      ? options.style
-      : undefined;
+  const inlineStyleLanguage = options?.style !== Style.Css ? options.style : undefined;
 
   const project = {
     root: normalize(projectRoot),
@@ -154,28 +153,25 @@ function addAppToWorkspaceFile(options: ApplicationOptions, appDir: string): Rul
         builder: Builders.Browser,
         defaultConfiguration: 'production',
         options: {
-          outputPath: `dist/${options.name}`,
+          outputPath: `dist/${folderName}`,
           index: `${sourceRoot}/index.html`,
           main: `${sourceRoot}/main.ts`,
           polyfills: `${sourceRoot}/polyfills.ts`,
           tsConfig: `${projectRoot}tsconfig.app.json`,
           inlineStyleLanguage,
-          assets: [
-            `${sourceRoot}/favicon.ico`,
-            `${sourceRoot}/assets`,
-          ],
-          styles: [
-            `${sourceRoot}/styles.${options.style}`,
-          ],
+          assets: [`${sourceRoot}/favicon.ico`, `${sourceRoot}/assets`],
+          styles: [`${sourceRoot}/styles.${options.style}`],
           scripts: [],
         },
         configurations: {
           production: {
             budgets,
-            fileReplacements: [{
-              replace: `${sourceRoot}/environments/environment.ts`,
-              with: `${sourceRoot}/environments/environment.prod.ts`,
-            }],
+            fileReplacements: [
+              {
+                replace: `${sourceRoot}/environments/environment.ts`,
+                with: `${sourceRoot}/environments/environment.prod.ts`,
+              },
+            ],
             outputHashing: 'all',
           },
           development: {
@@ -207,28 +203,25 @@ function addAppToWorkspaceFile(options: ApplicationOptions, appDir: string): Rul
           browserTarget: `${options.name}:build`,
         },
       },
-      test: options.minimal ? undefined : {
-        builder: Builders.Karma,
-        options: {
-          main: `${sourceRoot}/test.ts`,
-          polyfills: `${sourceRoot}/polyfills.ts`,
-          tsConfig: `${projectRoot}tsconfig.spec.json`,
-          karmaConfig: `${projectRoot}karma.conf.js`,
-          inlineStyleLanguage,
-          assets: [
-            `${sourceRoot}/favicon.ico`,
-            `${sourceRoot}/assets`,
-          ],
-          styles: [
-            `${sourceRoot}/styles.${options.style}`,
-          ],
-          scripts: [],
-        },
-      },
+      test: options.minimal
+        ? undefined
+        : {
+            builder: Builders.Karma,
+            options: {
+              main: `${sourceRoot}/test.ts`,
+              polyfills: `${sourceRoot}/polyfills.ts`,
+              tsConfig: `${projectRoot}tsconfig.spec.json`,
+              karmaConfig: `${projectRoot}karma.conf.js`,
+              inlineStyleLanguage,
+              assets: [`${sourceRoot}/favicon.ico`, `${sourceRoot}/assets`],
+              styles: [`${sourceRoot}/styles.${options.style}`],
+              scripts: [],
+            },
+          },
     },
   };
 
-  return updateWorkspace(workspace => {
+  return updateWorkspace((workspace) => {
     if (workspace.projects.size === 0) {
       workspace.extensions.defaultProject = options.name;
     }
@@ -247,39 +240,40 @@ function minimalPathFilter(path: string): boolean {
 
 export default function (options: ApplicationOptions): Rule {
   return async (host: Tree) => {
-    if (!options.name) {
-      throw new SchematicsException(`Invalid options, "name" is required.`);
-    }
-
-    validateProjectName(options.name);
-
     const appRootSelector = `${options.prefix}-root`;
-    const componentOptions: Partial<ComponentOptions> = !options.minimal ?
-      {
-        inlineStyle: options.inlineStyle,
-        inlineTemplate: options.inlineTemplate,
-        skipTests: options.skipTests,
-        style: options.style,
-        viewEncapsulation: options.viewEncapsulation,
-      } :
-      {
-        inlineStyle: options.inlineStyle ?? true,
-        inlineTemplate: options.inlineTemplate ?? true,
-        skipTests: true,
-        style: options.style,
-        viewEncapsulation: options.viewEncapsulation,
-      };
+    const componentOptions: Partial<ComponentOptions> = !options.minimal
+      ? {
+          inlineStyle: options.inlineStyle,
+          inlineTemplate: options.inlineTemplate,
+          skipTests: options.skipTests,
+          style: options.style,
+          viewEncapsulation: options.viewEncapsulation,
+        }
+      : {
+          inlineStyle: options.inlineStyle ?? true,
+          inlineTemplate: options.inlineTemplate ?? true,
+          skipTests: true,
+          style: options.style,
+          viewEncapsulation: options.viewEncapsulation,
+        };
 
     const workspace = await getWorkspace(host);
-    const newProjectRoot = workspace.extensions.newProjectRoot as (string | undefined) || '';
+    const newProjectRoot = (workspace.extensions.newProjectRoot as string | undefined) || '';
     const isRootApp = options.projectRoot !== undefined;
+
+    // If scoped project (i.e. "@foo/bar"), convert dir to "foo/bar".
+    let folderName = options.name.startsWith('@') ? options.name.substr(1) : options.name;
+    if (/[A-Z]/.test(folderName)) {
+      folderName = strings.dasherize(folderName);
+    }
+
     const appDir = isRootApp
       ? normalize(options.projectRoot || '')
-      : join(normalize(newProjectRoot), strings.dasherize(options.name));
+      : join(normalize(newProjectRoot), folderName);
     const sourceDir = `${appDir}/src/app`;
 
     return chain([
-      addAppToWorkspaceFile(options, appDir),
+      addAppToWorkspaceFile(options, appDir, folderName),
       mergeWith(
         apply(url('./files'), [
           options.minimal ? filter(minimalPathFilter) : noop(),
@@ -289,9 +283,12 @@ export default function (options: ApplicationOptions): Rule {
             relativePathToWorkspaceRoot: relativePathToWorkspaceRoot(appDir),
             appName: options.name,
             isRootApp,
+            folderName,
           }),
           move(appDir),
-        ]), MergeStrategy.Overwrite),
+        ]),
+        MergeStrategy.Overwrite,
+      ),
       schematic('module', {
         name: 'app',
         commonModule: false,
@@ -312,14 +309,12 @@ export default function (options: ApplicationOptions): Rule {
       }),
       mergeWith(
         apply(url('./other-files'), [
-          options.strict
-            ? noop()
-            : filter(path => path !== '/package.json.template'),
+          options.strict ? noop() : filter((path) => path !== '/package.json.template'),
           componentOptions.inlineTemplate
-            ? filter(path => !path.endsWith('.html.template'))
+            ? filter((path) => !path.endsWith('.html.template'))
             : noop(),
           componentOptions.skipTests
-            ? filter(path => !path.endsWith('.spec.ts.template'))
+            ? filter((path) => !path.endsWith('.spec.ts.template'))
             : noop(),
           applyTemplates({
             utils: strings,
@@ -328,9 +323,10 @@ export default function (options: ApplicationOptions): Rule {
             ...componentOptions,
           }),
           move(sourceDir),
-        ]), MergeStrategy.Overwrite),
+        ]),
+        MergeStrategy.Overwrite,
+      ),
       options.skipPackageJson ? noop() : addDependenciesToPackageJson(options),
-      options.lintFix ? applyLintFix(appDir) : noop(),
     ]);
   };
 }

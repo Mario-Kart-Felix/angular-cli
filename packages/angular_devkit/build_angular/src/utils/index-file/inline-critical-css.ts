@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -24,12 +24,15 @@ class CrittersExtended extends Critters {
   readonly warnings: string[] = [];
   readonly errors: string[] = [];
 
-  constructor(private readonly optionsExtended: InlineCriticalCssProcessorOptions & InlineCriticalCssProcessOptions) {
+  constructor(
+    private readonly optionsExtended: InlineCriticalCssProcessorOptions &
+      InlineCriticalCssProcessOptions,
+  ) {
     super({
       logger: {
         warn: (s: string) => this.warnings.push(s),
         error: (s: string) => this.errors.push(s),
-        info: () => { },
+        info: () => {},
       },
       logLevel: 'warn',
       path: optionsExtended.outputPath,
@@ -44,7 +47,7 @@ class CrittersExtended extends Critters {
     });
   }
 
-  protected readFile(path: string): Promise<string> {
+  public override readFile(path: string): Promise<string> {
     const readAsset = this.optionsExtended.readAsset;
 
     return readAsset ? readAsset(path) : fs.promises.readFile(path, 'utf-8');
@@ -52,10 +55,12 @@ class CrittersExtended extends Critters {
 }
 
 export class InlineCriticalCssProcessor {
-  constructor(protected readonly options: InlineCriticalCssProcessorOptions) { }
+  constructor(protected readonly options: InlineCriticalCssProcessorOptions) {}
 
-  async process(html: string, options: InlineCriticalCssProcessOptions)
-    : Promise<{ content: string, warnings: string[], errors: string[] }> {
+  async process(
+    html: string,
+    options: InlineCriticalCssProcessOptions,
+  ): Promise<{ content: string; warnings: string[]; errors: string[] }> {
     const critters = new CrittersExtended({ ...this.options, ...options });
     const content = await critters.process(html);
 

@@ -1,18 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {
-  JsonValue,
-  Path,
-  basename,
-  join,
-  normalize,
-  strings,
-} from '@angular-devkit/core';
+
+import { JsonValue, Path, basename, join, normalize, strings } from '@angular-devkit/core';
 import {
   Rule,
   SchematicContext,
@@ -25,9 +19,7 @@ import {
   move,
   url,
 } from '@angular-devkit/schematics';
-import {
-  NodePackageInstallTask,
-} from '@angular-devkit/schematics/tasks';
+import { NodePackageInstallTask } from '@angular-devkit/schematics/tasks';
 import * as ts from '../third_party/github.com/Microsoft/TypeScript/lib/typescript';
 import { findNode, getDecoratorMetadata } from '../utility/ast-utils';
 import { InsertChange } from '../utility/change';
@@ -40,8 +32,8 @@ import { BrowserBuilderOptions, Builders } from '../utility/workspace-models';
 import { Schema as UniversalOptions } from './schema';
 
 function updateConfigFile(options: UniversalOptions, tsConfigDirectory: Path): Rule {
-  return updateWorkspace(workspace => {
-    const clientProject = workspace.projects.get(options.clientProject);
+  return updateWorkspace((workspace) => {
+    const clientProject = workspace.projects.get(options.project);
 
     if (clientProject) {
       // In case the browser builder hashes the assets
@@ -67,7 +59,7 @@ function updateConfigFile(options: UniversalOptions, tsConfigDirectory: Path): R
 
       const buildTarget = clientProject.targets.get('build');
       if (buildTarget?.options) {
-        buildTarget.options.outputPath = `dist/${options.clientProject}/browser`;
+        buildTarget.options.outputPath = `dist/${options.project}/browser`;
       }
 
       const buildConfigurations = buildTarget?.configurations;
@@ -85,8 +77,12 @@ function updateConfigFile(options: UniversalOptions, tsConfigDirectory: Path): R
         builder: Builders.Server,
         defaultConfiguration: 'production',
         options: {
-          outputPath: `dist/${options.clientProject}/server`,
-          main: join(normalize(clientProject.root), 'src', mainPath.endsWith('.ts') ? mainPath : mainPath + '.ts'),
+          outputPath: `dist/${options.project}/server`,
+          main: join(
+            normalize(clientProject.root),
+            'src',
+            mainPath.endsWith('.ts') ? mainPath : mainPath + '.ts',
+          ),
           tsConfig: serverTsConfig,
           ...(buildTarget?.options ? getServerOptions(buildTarget?.options) : {}),
         },
@@ -144,9 +140,18 @@ function wrapBootstrapCall(mainFile: string): Rule {
 
     // indent contents
     const triviaWidth = bootstrapCall.getLeadingTriviaWidth();
-    const beforeText = `document.addEventListener('DOMContentLoaded', () => {\n`
-      + ' '.repeat(triviaWidth > 2 ? triviaWidth + 1 : triviaWidth);
-    const afterText = `\n${triviaWidth > 2 ? ' '.repeat(triviaWidth - 1) : ''}});`;
+    const beforeText =
+      `function bootstrap() {\n` + ' '.repeat(triviaWidth > 2 ? triviaWidth + 1 : triviaWidth);
+    const afterText =
+      `\n${triviaWidth > 2 ? ' '.repeat(triviaWidth - 1) : ''}};\n` +
+      `
+
+if (document.readyState === 'complete') {
+  bootstrap();
+} else {
+  document.addEventListener('DOMContentLoaded', bootstrap);
+}
+`;
 
     // in some cases we need to cater for a trailing semicolon such as;
     // bootstrap().catch(err => console.log(err));
@@ -165,15 +170,15 @@ function wrapBootstrapCall(mainFile: string): Rule {
 
 function findCallExpressionNode(node: ts.Node, text: string): ts.Node | null {
   if (
-    ts.isCallExpression(node)
-    && ts.isIdentifier(node.expression)
-    && node.expression.text === text
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === text
   ) {
     return node;
   }
 
   let foundNode: ts.Node | null = null;
-  ts.forEachChild(node, childNode => {
+  ts.forEachChild(node, (childNode) => {
     foundNode = findCallExpressionNode(childNode, text);
 
     if (foundNode) {
@@ -194,14 +199,14 @@ function addServerTransition(
 
     const bootstrapModuleRelativePath = findBootstrapModulePath(host, mainPath);
     const bootstrapModulePath = normalize(
-      `/${clientProjectRoot}/src/${bootstrapModuleRelativePath}.ts`);
+      `/${clientProjectRoot}/src/${bootstrapModuleRelativePath}.ts`,
+    );
 
     const browserModuleImport = findBrowserModuleImport(host, bootstrapModulePath);
     const appId = options.appId;
     const transitionCall = `.withServerTransition({ appId: '${appId}' })`;
     const position = browserModuleImport.pos + browserModuleImport.getFullText().length;
-    const transitionCallChange = new InsertChange(
-      bootstrapModulePath, position, transitionCall);
+    const transitionCallChange = new InsertChange(bootstrapModulePath, position, transitionCall);
 
     const transitionCallRecorder = host.beginUpdate(bootstrapModulePath);
     transitionCallRecorder.insertLeft(transitionCallChange.pos, transitionCallChange.toAdd);
@@ -229,7 +234,7 @@ export default function (options: UniversalOptions): Rule {
   return async (host: Tree, context: SchematicContext) => {
     const workspace = await getWorkspace(host);
 
-    const clientProject = workspace.projects.get(options.clientProject);
+    const clientProject = workspace.projects.get(options.project);
     if (!clientProject || clientProject.extensions.projectType !== 'application') {
       throw new SchematicsException(`Universal requires a project type of "application".`);
     }
@@ -239,8 +244,8 @@ export default function (options: UniversalOptions): Rule {
       throw targetBuildNotFoundError();
     }
 
-    const clientBuildOptions =
-      (clientBuildTarget.options || {}) as unknown as BrowserBuilderOptions;
+    const clientBuildOptions = (clientBuildTarget.options ||
+      {}) as unknown as BrowserBuilderOptions;
 
     const clientTsConfig = normalize(clientBuildOptions.tsConfig);
     const tsConfigExtends = basename(clientTsConfig);
@@ -256,7 +261,7 @@ export default function (options: UniversalOptions): Rule {
     const templateSource = apply(url('./files/src'), [
       applyTemplates({
         ...strings,
-        ...options as object,
+        ...(options as object),
         stripTsExtension: (s: string) => s.replace(/\.ts$/, ''),
         hasLocalizePackage: !!getPackageJsonDependency(host, '@angular/localize'),
       }),
@@ -266,7 +271,7 @@ export default function (options: UniversalOptions): Rule {
     const rootSource = apply(url('./files/root'), [
       applyTemplates({
         ...strings,
-        ...options as object,
+        ...(options as object),
         stripTsExtension: (s: string) => s.replace(/\.ts$/, ''),
         tsConfigExtends,
         relativePathToWorkspaceRoot: relativePathToWorkspaceRoot(tsConfigDirectory),

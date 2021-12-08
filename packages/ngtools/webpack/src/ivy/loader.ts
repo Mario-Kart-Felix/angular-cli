@@ -1,29 +1,28 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import * as path from 'path';
+import type { LoaderContext } from 'webpack';
 import { AngularPluginSymbol, FileEmitterCollection } from './symbol';
 
-export function angularWebpackLoader(
-  // tslint:disable-next-line: no-any
-  this: any,
-  content: string,
-  // Source map types are broken in the webpack type definitions
-  // tslint:disable-next-line: no-any
-  map: any,
-) {
+const JS_FILE_REGEXP = /\.[cm]?js$/;
+
+export function angularWebpackLoader(this: LoaderContext<unknown>, content: string, map: string) {
   const callback = this.async();
   if (!callback) {
     throw new Error('Invalid webpack version');
   }
 
-  const fileEmitter = this._compilation[AngularPluginSymbol] as FileEmitterCollection;
-  if (typeof fileEmitter !== 'object') {
-    if (this.resourcePath.endsWith('.js')) {
+  const fileEmitter = (
+    this as LoaderContext<unknown> & { [AngularPluginSymbol]?: FileEmitterCollection }
+  )[AngularPluginSymbol];
+  if (!fileEmitter || typeof fileEmitter !== 'object') {
+    if (JS_FILE_REGEXP.test(this.resourcePath)) {
       // Passthrough for JS files when no plugin is used
       this.callback(undefined, content, map);
 
@@ -35,10 +34,11 @@ export function angularWebpackLoader(
     return;
   }
 
-  fileEmitter.emit(this.resourcePath)
+  fileEmitter
+    .emit(this.resourcePath)
     .then((result) => {
       if (!result) {
-        if (this.resourcePath.endsWith('.js')) {
+        if (JS_FILE_REGEXP.test(this.resourcePath)) {
           // Return original content for JS files if not compiled by TypeScript ("allowJs")
           this.callback(undefined, content, map);
         } else {
@@ -67,7 +67,9 @@ export function angularWebpackLoader(
       callback(undefined, resultContent, resultMap);
     })
     .catch((err) => {
-      callback(err);
+      // The below is needed to hide stacktraces from users.
+      const message = err instanceof Error ? err.message : err;
+      callback(new Error(message));
     });
 }
 

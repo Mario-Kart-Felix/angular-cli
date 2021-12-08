@@ -1,19 +1,17 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-// tslint:disable:no-big-function
 
 import { normalize, virtualFs } from '@angular-devkit/core';
 import { HostTree } from '@angular-devkit/schematics';
 import { SchematicTestRunner, UnitTestTree } from '@angular-devkit/schematics/testing';
-import { map } from 'rxjs/operators'; // tslint:disable-line: no-implicit-dependencies
+import { map } from 'rxjs/operators';
 import * as semver from 'semver';
 import { angularMajorCompatGuarantee } from './index';
-
 
 describe('angularMajorCompatGuarantee', () => {
   [
@@ -26,7 +24,7 @@ describe('angularMajorCompatGuarantee', () => {
     '6.1.0-beta.0',
     '6.1.0-rc.0',
     '6.10.11',
-  ].forEach(golden => {
+  ].forEach((golden) => {
     it('works with ' + JSON.stringify(golden), () => {
       expect(semver.satisfies(golden, angularMajorCompatGuarantee('^5.0.0'))).toBeTruthy();
     });
@@ -36,7 +34,7 @@ describe('angularMajorCompatGuarantee', () => {
 describe('@schematics/update', () => {
   const schematicRunner = new SchematicTestRunner(
     '@schematics/update',
-    require.resolve('../collection.json'),
+    require.resolve('./collection.json'),
   );
   let host: virtualFs.test.TestHost;
   let appTree: UnitTestTree = new UnitTestTree(new HostTree());
@@ -53,44 +51,63 @@ describe('@schematics/update', () => {
     appTree = new UnitTestTree(new HostTree(host));
   });
 
-  it('ignores dependencies not hosted on the NPM registry', done => {
-    const tree = new UnitTestTree(new HostTree(new virtualFs.test.TestHost({
-      '/package.json': `{
+  it('ignores dependencies not hosted on the NPM registry', (done) => {
+    const tree = new UnitTestTree(
+      new HostTree(
+        new virtualFs.test.TestHost({
+          '/package.json': `{
         "name": "blah",
         "dependencies": {
           "@angular-devkit-tests/update-base": "file:update-base-1.0.0.tgz"
         }
       }`,
-    })));
+        }),
+      ),
+    );
 
-    schematicRunner.runSchematicAsync('update', undefined, tree).pipe(
-      map(t => {
-        const packageJson = JSON.parse(t.readContent('/package.json'));
-        expect(packageJson['dependencies']['@angular-devkit-tests/update-base'])
-            .toBe('file:update-base-1.0.0.tgz');
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync('update', undefined, tree)
+      .pipe(
+        map((t) => {
+          const packageJson = JSON.parse(t.readContent('/package.json'));
+          expect(packageJson['dependencies']['@angular-devkit-tests/update-base']).toBe(
+            'file:update-base-1.0.0.tgz',
+          );
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 
   it('should not error with yarn 2.0 protocols', async () => {
-    const tree = new UnitTestTree(new HostTree(new virtualFs.test.TestHost({
-      '/package.json': `{
+    const tree = new UnitTestTree(
+      new HostTree(
+        new virtualFs.test.TestHost({
+          '/package.json': `{
         "name": "blah",
         "dependencies": {
           "src": "src@link:./src",
           "@angular-devkit-tests/update-base": "1.0.0"
         }
       }`,
-    })));
+        }),
+      ),
+    );
 
-    const newTree = await schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular-devkit-tests/update-base'],
-    }, tree).toPromise();
+    const newTree = await schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular-devkit-tests/update-base'],
+        },
+        tree,
+      )
+      .toPromise();
     const { dependencies } = JSON.parse(newTree.readContent('/package.json'));
     expect(dependencies['@angular-devkit-tests/update-base']).toBe('1.1.0');
   });
 
-  it('updates Angular as compatible with Angular N-1', done => {
+  it('updates Angular as compatible with Angular N-1', (done) => {
     // Add the basic migration package.
     const content = virtualFs.fileBufferToString(host.sync.read(normalize('/package.json')));
     const packageJson = JSON.parse(content);
@@ -104,33 +121,25 @@ describe('@schematics/update', () => {
       virtualFs.stringToFileBuffer(JSON.stringify(packageJson)),
     );
 
-    schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular/core@^6.0.0'],
-    }, appTree).pipe(
-      map(tree => {
-        const packageJson = JSON.parse(tree.readContent('/package.json'));
-        expect(packageJson['dependencies']['@angular/core'][0]).toBe('6');
-
-        // Check install task.
-        expect(schematicRunner.tasks).toEqual([
-          {
-            name: 'node-package',
-            options: jasmine.objectContaining({
-              command: 'install',
-            }),
-          },
-          {
-            name: 'run-schematic',
-            options: jasmine.objectContaining({
-              name: 'migrate',
-            }),
-          },
-        ]);
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular/core@^6.0.0'],
+        },
+        appTree,
+      )
+      .pipe(
+        map((tree) => {
+          const packageJson = JSON.parse(tree.readContent('/package.json'));
+          expect(packageJson['dependencies']['@angular/core'][0]).toBe('6');
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 
-  it('updates Angular as compatible with Angular N-1 (2)', done => {
+  it('updates Angular as compatible with Angular N-1 (2)', (done) => {
     // Add the basic migration package.
     const content = virtualFs.fileBufferToString(host.sync.read(normalize('/package.json')));
     const packageJson = JSON.parse(content);
@@ -150,33 +159,25 @@ describe('@schematics/update', () => {
       virtualFs.stringToFileBuffer(JSON.stringify(packageJson)),
     );
 
-    schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular/core@^6.0.0'],
-    }, appTree).pipe(
-      map(tree => {
-        const packageJson = JSON.parse(tree.readContent('/package.json'));
-        expect(packageJson['dependencies']['@angular/core'][0]).toBe('6');
-        expect(packageJson['dependencies']['rxjs'][0]).toBe('6');
-        expect(packageJson['dependencies']['typescript'][0]).toBe('2');
-        expect(packageJson['dependencies']['typescript'][2]).not.toBe('4');
-
-        // Check install task.
-        expect(schematicRunner.tasks).toEqual([
-          {
-            name: 'node-package',
-            options: jasmine.objectContaining({
-              command: 'install',
-            }),
-          },
-          {
-            name: 'run-schematic',
-            options: jasmine.objectContaining({
-              name: 'migrate',
-            }),
-          },
-        ]);
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular/core@^6.0.0'],
+        },
+        appTree,
+      )
+      .pipe(
+        map((tree) => {
+          const packageJson = JSON.parse(tree.readContent('/package.json'));
+          expect(packageJson['dependencies']['@angular/core'][0]).toBe('6');
+          expect(packageJson['dependencies']['rxjs'][0]).toBe('6');
+          expect(packageJson['dependencies']['typescript'][0]).toBe('2');
+          expect(packageJson['dependencies']['typescript'][2]).not.toBe('4');
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 
   it('uses packageGroup for versioning', async () => {
@@ -191,29 +192,26 @@ describe('@schematics/update', () => {
       virtualFs.stringToFileBuffer(JSON.stringify(packageJson)),
     );
 
-    await schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular-devkit-tests/update-package-group-1'],
-    }, appTree).pipe(
-      map(tree => {
-        const packageJson = JSON.parse(tree.readContent('/package.json'));
-        const deps = packageJson['dependencies'];
-        expect(deps['@angular-devkit-tests/update-package-group-1']).toBe('1.2.0');
-        expect(deps['@angular-devkit-tests/update-package-group-2']).toBe('2.0.0');
-
-        // Check install task.
-        expect(schematicRunner.tasks).toEqual([
-          {
-            name: 'node-package',
-            options: jasmine.objectContaining({
-              command: 'install',
-            }),
-          },
-        ]);
-      }),
-    ).toPromise();
+    await schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular-devkit-tests/update-package-group-1'],
+        },
+        appTree,
+      )
+      .pipe(
+        map((tree) => {
+          const packageJson = JSON.parse(tree.readContent('/package.json'));
+          const deps = packageJson['dependencies'];
+          expect(deps['@angular-devkit-tests/update-package-group-1']).toBe('1.2.0');
+          expect(deps['@angular-devkit-tests/update-package-group-2']).toBe('2.0.0');
+        }),
+      )
+      .toPromise();
   }, 45000);
 
-  it('can migrate only', done => {
+  it('can migrate only', (done) => {
     // Add the basic migration package.
     const content = virtualFs.fileBufferToString(host.sync.read(normalize('/package.json')));
     const packageJson = JSON.parse(content);
@@ -223,30 +221,29 @@ describe('@schematics/update', () => {
       virtualFs.stringToFileBuffer(JSON.stringify(packageJson)),
     );
 
-    schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular-devkit-tests/update-migrations'],
-      migrateOnly: true,
-    }, appTree).pipe(
-      map(tree => {
-        const packageJson = JSON.parse(tree.readContent('/package.json'));
-        expect(packageJson['dependencies']['@angular-devkit-tests/update-base']).toBe('1.0.0');
-        expect(packageJson['dependencies']['@angular-devkit-tests/update-migrations'])
-          .toBe('1.0.0');
-
-        // Check install task.
-        expect(schematicRunner.tasks).toEqual([
-          {
-            name: 'run-schematic',
-            options: jasmine.objectContaining({
-              name: 'migrate',
-            }),
-          },
-        ]);
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular-devkit-tests/update-migrations'],
+          migrateOnly: true,
+        },
+        appTree,
+      )
+      .pipe(
+        map((tree) => {
+          const packageJson = JSON.parse(tree.readContent('/package.json'));
+          expect(packageJson['dependencies']['@angular-devkit-tests/update-base']).toBe('1.0.0');
+          expect(packageJson['dependencies']['@angular-devkit-tests/update-migrations']).toBe(
+            '1.0.0',
+          );
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 
-  it('can migrate from only', done => {
+  it('can migrate from only', (done) => {
     // Add the basic migration package.
     const content = virtualFs.fileBufferToString(host.sync.read(normalize('/package.json')));
     const packageJson = JSON.parse(content);
@@ -256,34 +253,29 @@ describe('@schematics/update', () => {
       virtualFs.stringToFileBuffer(JSON.stringify(packageJson)),
     );
 
-    schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular-devkit-tests/update-migrations'],
-      migrateOnly: true,
-      from: '0.1.2',
-    }, appTree).pipe(
-      map(tree => {
-        const packageJson = JSON.parse(tree.readContent('/package.json'));
-        expect(packageJson['dependencies']['@angular-devkit-tests/update-migrations'])
-          .toBe('1.6.0');
-
-        // Check install task.
-        expect(schematicRunner.tasks).toEqual([
-          {
-            name: 'run-schematic',
-            options: jasmine.objectContaining({
-              name: 'migrate',
-              options: jasmine.objectContaining({
-                from: '0.1.2',
-                to: '1.6.0',
-              }),
-            }),
-          },
-        ]);
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular-devkit-tests/update-migrations'],
+          migrateOnly: true,
+          from: '0.1.2',
+        },
+        appTree,
+      )
+      .pipe(
+        map((tree) => {
+          const packageJson = JSON.parse(tree.readContent('/package.json'));
+          expect(packageJson['dependencies']['@angular-devkit-tests/update-migrations']).toBe(
+            '1.6.0',
+          );
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 
-  it('can install and migrate with --from (short version number)', done => {
+  it('can install and migrate with --from (short version number)', (done) => {
     // Add the basic migration package.
     const content = virtualFs.fileBufferToString(host.sync.read(normalize('/package.json')));
     const packageJson = JSON.parse(content);
@@ -293,34 +285,29 @@ describe('@schematics/update', () => {
       virtualFs.stringToFileBuffer(JSON.stringify(packageJson)),
     );
 
-    schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular-devkit-tests/update-migrations'],
-      migrateOnly: true,
-      from: '0',
-    }, appTree).pipe(
-      map(tree => {
-        const packageJson = JSON.parse(tree.readContent('/package.json'));
-        expect(packageJson['dependencies']['@angular-devkit-tests/update-migrations'])
-          .toBe('1.6.0');
-
-        // Check install task.
-        expect(schematicRunner.tasks).toEqual([
-          {
-            name: 'run-schematic',
-            options: jasmine.objectContaining({
-              name: 'migrate',
-              options: jasmine.objectContaining({
-                from: '0.0.0',
-                to: '1.6.0',
-              }),
-            }),
-          },
-        ]);
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular-devkit-tests/update-migrations'],
+          migrateOnly: true,
+          from: '0',
+        },
+        appTree,
+      )
+      .pipe(
+        map((tree) => {
+          const packageJson = JSON.parse(tree.readContent('/package.json'));
+          expect(packageJson['dependencies']['@angular-devkit-tests/update-migrations']).toBe(
+            '1.6.0',
+          );
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 
-  it('validates peer dependencies', done => {
+  it('validates peer dependencies', (done) => {
     const content = virtualFs.fileBufferToString(host.sync.read(normalize('/package.json')));
     const packageJson = JSON.parse(content);
     const dependencies = packageJson['dependencies'];
@@ -335,21 +322,31 @@ describe('@schematics/update', () => {
     );
 
     const messages: string[] = [];
-    schematicRunner.logger.subscribe(x => messages.push(x.message));
+    schematicRunner.logger.subscribe((x) => messages.push(x.message));
     const hasPeerdepMsg = (dep: string) =>
-      messages.some(str => str.includes(`missing peer dependency of "${dep}"`));
+      messages.some((str) => str.includes(`missing peer dependency of "${dep}"`));
 
-    schematicRunner.runSchematicAsync('update', {
-      packages: ['@angular-devkit/build-angular'],
-      next: true,
-    }, appTree).pipe(
-      map(() => {
-        expect(hasPeerdepMsg('@angular/compiler-cli'))
-          .toBeTruthy(`Should show @angular/compiler-cli message.`);
-        expect(hasPeerdepMsg('typescript')).toBeTruthy(`Should show typescript message.`);
-        expect(hasPeerdepMsg('@angular/localize'))
-          .toBeFalsy(`Should not show @angular/localize message.`);
-      }),
-    ).toPromise().then(done, done.fail);
+    schematicRunner
+      .runSchematicAsync(
+        'update',
+        {
+          packages: ['@angular-devkit/build-angular'],
+          next: true,
+        },
+        appTree,
+      )
+      .pipe(
+        map(() => {
+          expect(hasPeerdepMsg('@angular/compiler-cli')).toBeTruthy(
+            `Should show @angular/compiler-cli message.`,
+          );
+          expect(hasPeerdepMsg('typescript')).toBeTruthy(`Should show typescript message.`);
+          expect(hasPeerdepMsg('@angular/localize')).toBeFalsy(
+            `Should not show @angular/localize message.`,
+          );
+        }),
+      )
+      .toPromise()
+      .then(done, done.fail);
   }, 45000);
 });

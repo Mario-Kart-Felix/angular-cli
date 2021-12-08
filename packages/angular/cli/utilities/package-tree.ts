@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -67,7 +67,7 @@ export async function getProjectDependencies(dir: string): Promise<Map<string, P
     throw new Error('Could not find package.json');
   }
 
-  const results = new Map<string, PackageTreeNode> ();
+  const results = new Map<string, PackageTreeNode>();
   for (const [name, version] of getAllDependencies(pkg)) {
     const packageJsonPath = findPackageJson(dir, name);
     if (!packageJsonPath) {

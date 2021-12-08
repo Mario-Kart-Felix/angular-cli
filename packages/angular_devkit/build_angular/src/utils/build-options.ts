@@ -1,13 +1,13 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
 import { logging } from '@angular-devkit/core';
-import { ParsedConfiguration } from '@angular/compiler-cli';
+import type { ParsedConfiguration } from '@angular/compiler-cli';
 import {
   AssetPatternClass,
   Budget,
@@ -18,8 +18,9 @@ import {
   InlineStyleLanguage,
   Localize,
   SourceMapClass,
-} from '../browser/schema';
-import { Schema as DevServerSchema } from '../dev-server/schema';
+} from '../builders/browser/schema';
+import { Schema as DevServerSchema } from '../builders/dev-server/schema';
+import { NormalizedCachedOptions } from './normalize-cache';
 import { NormalizedFileReplacement } from './normalize-file-replacements';
 import { NormalizedOptimizationOptions } from './normalize-optimization';
 
@@ -38,8 +39,6 @@ export interface BuildOptions {
   progress?: boolean;
   localize?: Localize;
   i18nMissingTranslation?: I18NMissingTranslation;
-  /** @deprecated since version 11.0. No longer required to disable CSS extraction for HMR.*/
-  extractCss?: boolean;
   bundleDependencies?: boolean;
   externalDependencies?: string[];
   watch?: boolean;
@@ -57,7 +56,6 @@ export interface BuildOptions {
   serviceWorker?: boolean;
   webWorkerTsConfig?: string;
   statsJson: boolean;
-  forkTypeChecker: boolean;
   hmr?: boolean;
   main: string;
   polyfills?: string;
@@ -69,18 +67,16 @@ export interface BuildOptions {
   platform?: 'browser' | 'server';
   fileReplacements: NormalizedFileReplacement[];
   inlineStyleLanguage?: InlineStyleLanguage;
-
   allowedCommonJsDependencies?: string[];
-
-  differentialLoadingNeeded?: boolean;
-}
-
-export interface WebpackTestOptions extends BuildOptions {
+  cache: NormalizedCachedOptions;
   codeCoverage?: boolean;
   codeCoverageExclude?: string[];
+  supportedBrowsers: string[];
 }
 
-export interface WebpackDevServerOptions extends BuildOptions, Omit<DevServerSchema, 'optimization' | 'sourceMap' | 'browserTarget'> { }
+export interface WebpackDevServerOptions
+  extends BuildOptions,
+    Omit<DevServerSchema, 'optimization' | 'sourceMap' | 'browserTarget'> {}
 
 export interface WebpackConfigOptions<T = BuildOptions> {
   root: string;
@@ -91,4 +87,5 @@ export interface WebpackConfigOptions<T = BuildOptions> {
   tsConfig: ParsedConfiguration;
   tsConfigPath: string;
   scriptTarget: import('typescript').ScriptTarget;
+  projectName: string;
 }

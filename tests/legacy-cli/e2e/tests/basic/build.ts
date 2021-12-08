@@ -1,39 +1,37 @@
-import { expectFileToMatch, replaceInFile } from '../../utils/fs';
+import { expectFileToMatch } from '../../utils/fs';
 import { ng } from '../../utils/process';
 
-
-export default async function() {
+export default async function () {
   // Development build
-  await ng('build', '--configuration=development');
+  const { stdout: stdoutDev } = await ng('build', '--configuration=development');
   await expectFileToMatch('dist/test-project/index.html', 'main.js');
+  if (stdoutDev.includes('Estimated Transfer Size')) {
+    throw new Error(
+      `Expected stdout not to contain 'Estimated Transfer Size' but it did.\n${stdoutDev}`,
+    );
+  }
 
   // Named Development build
   await ng('build', 'test-project', '--configuration=development');
   await ng('build', '--configuration=development', 'test-project', '--no-progress');
   await ng('build', '--configuration=development', '--no-progress', 'test-project');
 
-  // Enable Differential loading to run both size checks
-  await replaceInFile(
-    '.browserslistrc',
-    'not IE 11',
-    'IE 11',
-  );
   // Production build
   const { stderr: stderrProgress, stdout } = await ng('build', '--progress');
-  await expectFileToMatch('dist/test-project/index.html', /main-es5\.[a-zA-Z0-9]{20}\.js/);
-  await expectFileToMatch('dist/test-project/index.html', /main-es2017\.[a-zA-Z0-9]{20}\.js/);
+  await expectFileToMatch('dist/test-project/index.html', /main\.[a-zA-Z0-9]{16}\.js/);
 
-  if (!stdout.includes('Initial ES5 Total')) {
-    throw new Error(`Expected stdout not to contain 'Initial ES5 Total' but it did.\n${stdout}`);
+  if (!stdout.includes('Initial Total')) {
+    throw new Error(`Expected stdout to contain 'Initial Total' but it did not.\n${stdout}`);
   }
 
-  if (!stdout.includes('Initial ES2017 Total')) {
-    throw new Error(`Expected stdout not to contain 'Initial ES2017 Total' but it did.\n${stdout}`);
+  if (!stdout.includes('Estimated Transfer Size')) {
+    throw new Error(
+      `Expected stdout to contain 'Estimated Transfer Size' but it did not.\n${stdout}`,
+    );
   }
 
   const logs: string[] = [
     'Browser application bundle generation complete',
-    'ES5 bundle generation complete',
     'Copying assets complete',
     'Index html generation complete',
   ];

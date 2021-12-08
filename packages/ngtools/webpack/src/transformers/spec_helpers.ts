@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+
 import { basename } from 'path';
 import * as ts from 'typescript';
 
@@ -25,8 +26,8 @@ export function createTypescriptContext(
     allowJs: true,
     newLine: ts.NewLineKind.LineFeed,
     moduleResolution: ts.ModuleResolutionKind.NodeJs,
-    module: ts.ModuleKind.ESNext,
-    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ES2020,
+    target: ts.ScriptTarget.ES2020,
     skipLibCheck: true,
     sourceMap: false,
     importHelpers: true,
@@ -36,10 +37,7 @@ export function createTypescriptContext(
   };
 
   // Create compiler host.
-  const compilerHost = ts.createCompilerHost(
-    compilerOptions,
-    true,
-  );
+  const compilerHost = ts.createCompilerHost(compilerOptions, true);
 
   const baseFileExists = compilerHost.fileExists;
   compilerHost.fileExists = function (compilerFileName: string) {
@@ -51,7 +49,7 @@ export function createTypescriptContext(
   };
 
   const baseReadFile = compilerHost.readFile;
-  compilerHost.readFile = function(compilerFileName: string) {
+  compilerHost.readFile = function (compilerFileName: string) {
     if (compilerFileName === fileName) {
       return content;
     } else if (additionalFiles?.[basename(compilerFileName)]) {
@@ -90,11 +88,15 @@ export function transformTypescript(
   let outputContent;
   // Emit.
   const { emitSkipped, diagnostics } = program.emit(
-    undefined, (filename, data) => {
+    undefined,
+    (filename, data) => {
       if (filename === outputFileName) {
         outputContent = data;
       }
-    }, undefined, undefined, { before: transformers },
+    },
+    undefined,
+    undefined,
+    { before: transformers },
   );
 
   // Throw error with diagnostics if emit wasn't successfull.

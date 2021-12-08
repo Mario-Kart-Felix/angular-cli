@@ -42,6 +42,7 @@ ALL_SCHEMA_TARGETS = [
 
 ts_library(
     name = "angular",
+    package_name = "@schematics/angular",
     srcs = glob(
         include = ["**/*.ts"],
         exclude = [
@@ -64,6 +65,7 @@ ts_library(
         include = [
             "collection.json",
             "package.json",
+            "utility/latest-versions/package.json",
             "migrations/migration-collection.json",
             "*/schema.json",
             "*/files/**/*",
@@ -81,11 +83,9 @@ ts_library(
         "//packages/angular_devkit/schematics/tasks",
         "//packages/schematics/angular/third_party/github.com/Microsoft/TypeScript",
         "@npm//@types/browserslist",
-        "@npm//@types/caniuse-lite",
         "@npm//@types/node",
         "@npm//jsonc-parser",
         "@npm//rxjs",
-        "@npm//tslint",
     ],
 )
 
@@ -120,10 +120,8 @@ ts_library(
         "//packages/angular_devkit/schematics/testing",
         "//packages/schematics/angular/third_party/github.com/Microsoft/TypeScript",
         "@npm//@types/browserslist",
-        "@npm//@types/caniuse-lite",
         "@npm//jsonc-parser",
         "@npm//rxjs",
-        "@npm//tslint",
     ],
     # @external_end
 )
