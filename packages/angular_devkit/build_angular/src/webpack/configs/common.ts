@@ -98,7 +98,7 @@ export async function getCommonConfig(wco: WebpackConfigOptions): Promise<Config
   } = await loadEsmModule<typeof import('@angular/compiler-cli')>('@angular/compiler-cli');
 
   // determine hashing format
-  const hashFormat = getOutputHashFormat(buildOptions.outputHashing || 'none');
+  const hashFormat = getOutputHashFormat(buildOptions.outputHashing);
 
   if (buildOptions.progress) {
     extraPlugins.push(new ProgressPlugin(platform));
@@ -121,15 +121,6 @@ export async function getCommonConfig(wco: WebpackConfigOptions): Promise<Config
         entryPoints['polyfills'].push(projectPolyfills);
       } else {
         entryPoints['polyfills'] = [projectPolyfills];
-      }
-    }
-
-    if (!buildOptions.aot) {
-      const jitPolyfills = 'core-js/proposals/reflect-metadata';
-      if (entryPoints['polyfills']) {
-        entryPoints['polyfills'].push(jitPolyfills);
-      } else {
-        entryPoints['polyfills'] = [jitPolyfills];
       }
     }
   }
@@ -169,15 +160,6 @@ export async function getCommonConfig(wco: WebpackConfigOptions): Promise<Config
     extraPlugins.push(
       new CopyWebpackPlugin({
         patterns: assetPatterns(root, buildOptions.assets),
-      }),
-    );
-  }
-
-  if (buildOptions.showCircularDependencies) {
-    const CircularDependencyPlugin = require('circular-dependency-plugin');
-    extraPlugins.push(
-      new CircularDependencyPlugin({
-        exclude: /[\\/]node_modules[\\/]/,
       }),
     );
   }
@@ -277,7 +259,8 @@ export async function getCommonConfig(wco: WebpackConfigOptions): Promise<Config
         define: buildOptions.aot ? GLOBAL_DEFS_FOR_TERSER_WITH_AOT : GLOBAL_DEFS_FOR_TERSER,
         sourcemap: scriptsSourceMap,
         target: scriptTarget,
-        keepNames: !allowMangle || isPlatformServer,
+        keepIdentifierNames: !allowMangle || isPlatformServer,
+        keepNames: isPlatformServer,
         removeLicenses: buildOptions.extractLicenses,
         advanced: buildOptions.buildOptimizer,
       }),
@@ -356,16 +339,14 @@ export async function getCommonConfig(wco: WebpackConfigOptions): Promise<Config
     module: {
       // Show an error for missing exports instead of a warning.
       strictExportPresence: true,
-      parser:
-        webWorkerTsConfig === undefined
-          ? {
-              javascript: {
-                worker: false,
-                url: false,
-              },
-            }
-          : undefined,
-
+      parser: {
+        javascript: {
+          // Disable auto URL asset module creation. This doesn't effect `new Worker(new URL(...))`
+          // https://webpack.js.org/guides/asset-modules/#url-assets
+          url: false,
+          worker: !!webWorkerTsConfig,
+        },
+      },
       rules: [
         {
           test: /\.?(svg|html)$/,
@@ -384,7 +365,9 @@ export async function getCommonConfig(wco: WebpackConfigOptions): Promise<Config
           test: /\.[cm]?[tj]sx?$/,
           // The below is needed due to a bug in `@babel/runtime`. See: https://github.com/babel/babel/issues/12824
           resolve: { fullySpecified: false },
-          exclude: [/[/\\](?:core-js|@babel|tslib|web-animations-js|web-streams-polyfill)[/\\]/],
+          exclude: [
+            /[/\\](?:core-js|@babel|tslib|web-animations-js|web-streams-polyfill|whatwg-url)[/\\]/,
+          ],
           use: [
             {
               loader: require.resolve('../../babel/webpack-loader'),

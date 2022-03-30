@@ -28,6 +28,7 @@ import { IndexHtmlTransform } from '../../utils/index-file/index-html-generator'
 import { createTranslationLoader } from '../../utils/load-translations';
 import { NormalizedCachedOptions, normalizeCacheOptions } from '../../utils/normalize-cache';
 import { generateEntryPoints } from '../../utils/package-chunk-sort';
+import { purgeStaleBuildCache } from '../../utils/purge-cache';
 import { assertCompatibleAngularVersion } from '../../utils/version';
 import {
   generateI18nBrowserWebpackConfigFromContext,
@@ -46,7 +47,7 @@ import { createWebpackLoggingCallback } from '../../webpack/utils/stats';
 import { Schema as BrowserBuilderSchema, OutputHashing } from '../browser/schema';
 import { Schema } from './schema';
 
-export type DevServerBuilderOptions = Schema & json.JsonObject;
+export type DevServerBuilderOptions = Schema;
 
 /**
  * @experimental Direct usage of this type is considered experimental.
@@ -81,7 +82,7 @@ export function serveWebpackBrowser(
   const browserTarget = targetFromTargetString(options.browserTarget);
 
   async function setup(): Promise<{
-    browserOptions: json.JsonObject & BrowserBuilderSchema;
+    browserOptions: BrowserBuilderSchema;
     webpackConfig: webpack.Configuration;
     projectRoot: string;
   }> {
@@ -89,6 +90,9 @@ export function serveWebpackBrowser(
     if (!projectName) {
       throw new Error('The builder requires a target.');
     }
+
+    // Purge old build disk cache.
+    await purgeStaleBuildCache(context);
 
     options.port = await checkPort(options.port ?? 4200, options.host || 'localhost');
 
@@ -246,11 +250,13 @@ export function serveWebpackBrowser(
       }).pipe(
         concatMap(async (buildEvent, index) => {
           // Resolve serve address.
+          const publicPath = webpackConfig.devServer?.devMiddleware?.publicPath;
+
           const serverAddress = url.format({
             protocol: options.ssl ? 'https' : 'http',
             hostname: options.host === '0.0.0.0' ? 'localhost' : options.host,
             port: buildEvent.port,
-            pathname: webpackConfig.devServer?.devMiddleware?.publicPath,
+            pathname: typeof publicPath === 'string' ? publicPath : undefined,
           });
 
           if (index === 0) {
@@ -366,15 +372,24 @@ async function setupLocalize(
       compiler.hooks.thisCompilation.tap('build-angular', (compilation) => {
         if (i18n.shouldInline && i18nLoaderOptions.translation === undefined) {
           // Reload translations
-          loadTranslations(locale, localeDescription, context.workspaceRoot, loader, {
-            warn(message) {
-              addWarning(compilation, message);
+          loadTranslations(
+            locale,
+            localeDescription,
+            context.workspaceRoot,
+            loader,
+            {
+              warn(message) {
+                addWarning(compilation, message);
+              },
+              error(message) {
+                addError(compilation, message);
+              },
             },
-            error(message) {
-              addError(compilation, message);
-            },
-          });
-          i18nLoaderOptions.translation = localeDescription.translation;
+            undefined,
+            browserOptions.i18nDuplicateTranslation,
+          );
+
+          i18nLoaderOptions.translation = localeDescription.translation ?? {};
         }
 
         compilation.hooks.finishModules.tap('build-angular', () => {

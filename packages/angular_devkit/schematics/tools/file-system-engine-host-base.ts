@@ -118,12 +118,12 @@ export abstract class FileSystemEngineHostBase implements FileSystemEngineHost {
   private _contextTransforms: ContextTransform[] = [];
   private _taskFactories = new Map<string, () => Observable<TaskExecutor>>();
 
-  listSchematicNames(collection: FileSystemCollectionDesc) {
+  listSchematicNames(collection: FileSystemCollectionDesc, includeHidden?: boolean) {
     const schematics: string[] = [];
     for (const key of Object.keys(collection.schematics)) {
       const schematic = collection.schematics[key];
 
-      if (schematic.hidden || schematic.private) {
+      if ((schematic.hidden && !includeHidden) || schematic.private) {
         continue;
       }
 
@@ -217,9 +217,9 @@ export abstract class FileSystemEngineHostBase implements FileSystemEngineHost {
 
     if (partialDesc.extends) {
       const index = partialDesc.extends.indexOf(':');
-      const collectionName = index !== -1 ? partialDesc.extends.substr(0, index) : null;
+      const collectionName = index !== -1 ? partialDesc.extends.slice(0, index) : null;
       const schematicName =
-        index === -1 ? partialDesc.extends : partialDesc.extends.substr(index + 1);
+        index === -1 ? partialDesc.extends : partialDesc.extends.slice(index + 1);
 
       if (collectionName !== null) {
         const extendCollection = this.createCollectionDescription(collectionName);

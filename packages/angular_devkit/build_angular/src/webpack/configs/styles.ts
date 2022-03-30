@@ -7,9 +7,10 @@
  */
 
 import * as fs from 'fs';
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import * as path from 'path';
 import { Configuration, RuleSetUseItem } from 'webpack';
-import { ExtraEntryPoint } from '../../builders/browser/schema';
+import { StyleElement } from '../../builders/browser/schema';
 import { SassWorkerImplementation } from '../../sass/sass-service';
 import { WebpackConfigOptions } from '../../utils/build-options';
 import {
@@ -26,7 +27,7 @@ import {
 } from '../utils/helpers';
 
 function resolveGlobalStyles(
-  styleEntrypoints: ExtraEntryPoint[],
+  styleEntrypoints: StyleElement[],
   root: string,
   preserveSymlinks: boolean,
 ): { entryPoints: Record<string, string[]>; noInjectNames: string[]; paths: string[] } {
@@ -71,7 +72,6 @@ function resolveGlobalStyles(
 
 // eslint-disable-next-line max-lines-per-function
 export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
-  const MiniCssExtractPlugin = require('mini-css-extract-plugin');
   const postcssImports = require('postcss-import');
   const postcssPresetEnv: typeof import('postcss-preset-env') = require('postcss-preset-env');
 
@@ -83,7 +83,7 @@ export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
   const cssSourceMap = buildOptions.sourceMap.styles;
 
   // Determine hashing format.
-  const hashFormat = getOutputHashFormat(buildOptions.outputHashing as string);
+  const hashFormat = getOutputHashFormat(buildOptions.outputHashing);
 
   // use includePaths from appConfig
   const includePaths =
@@ -107,16 +107,14 @@ export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
     );
   }
 
-  const sassImplementation = getSassImplementation();
-  if (sassImplementation instanceof SassWorkerImplementation) {
-    extraPlugins.push({
-      apply(compiler) {
-        compiler.hooks.shutdown.tap('sass-worker', () => {
-          sassImplementation?.close();
-        });
-      },
-    });
-  }
+  const sassImplementation = new SassWorkerImplementation();
+  extraPlugins.push({
+    apply(compiler) {
+      compiler.hooks.shutdown.tap('sass-worker', () => {
+        sassImplementation.close();
+      });
+    },
+  });
 
   const assetNameTemplate = assetNameTemplateFactory(hashFormat);
 
@@ -149,9 +147,6 @@ export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
       );
     }
     if (tailwindPackagePath) {
-      if (process.env['TAILWIND_MODE'] === undefined) {
-        process.env['TAILWIND_MODE'] = buildOptions.watch ? 'watch' : 'build';
-      }
       extraPostcssPlugins.push(require(tailwindPackagePath)({ config: tailwindConfigPath }));
     }
   }
@@ -172,7 +167,7 @@ export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
         : undefined,
       plugins: [
         postcssImports({
-          resolve: (url: string) => (url.startsWith('~') ? url.substr(1) : url),
+          resolve: (url: string) => (url.startsWith('~') ? url.slice(1) : url),
           load: (filename: string) => {
             return new Promise<string>((resolve, reject) => {
               loader.fs.readFile(filename, (err: Error, data: Buffer) => {
@@ -377,16 +372,17 @@ export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
           // Setup processing rules for global and component styles
           {
             oneOf: [
-              // Component styles are all styles except defined global styles
-              {
-                use: componentStyleLoaders,
-                resourceQuery: /\?ngResource/,
-                type: 'asset/source',
-              },
               // Global styles are only defined global styles
               {
                 use: globalStyleLoaders,
+                include: globalStylePaths,
                 resourceQuery: { not: [/\?ngResource/] },
+              },
+              // Component styles are all styles except defined global styles
+              {
+                use: componentStyleLoaders,
+                type: 'asset/source',
+                resourceQuery: /\?ngResource/,
               },
             ],
           },
@@ -405,15 +401,4 @@ export function getStylesConfig(wco: WebpackConfigOptions): Configuration {
     },
     plugins: extraPlugins,
   };
-}
-
-function getSassImplementation(): SassWorkerImplementation | typeof import('sass') {
-  const { webcontainer } = process.versions as unknown as Record<string, unknown>;
-
-  // When `webcontainer` is a truthy it means that we are running in a StackBlitz webcontainer.
-  // `SassWorkerImplementation` uses `receiveMessageOnPort` Node.js `worker_thread` API to ensure sync behavior which is ~2x faster.
-  // However, it is non trivial to support this in a webcontainer and while slower we choose to use `dart-sass`
-  // which in Webpack uses the slower async path.
-  // We should periodically check with StackBlitz folks (Mark Whitfeld / Dominic Elm) to determine if this workaround is still needed.
-  return webcontainer ? require('sass') : new SassWorkerImplementation();
 }

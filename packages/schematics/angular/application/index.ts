@@ -92,14 +92,23 @@ function addAppToWorkspaceFile(
   }
 
   if (options.skipTests || options.minimal) {
-    ['class', 'component', 'directive', 'guard', 'interceptor', 'pipe', 'service'].forEach(
-      (type) => {
-        if (!(`@schematics/angular:${type}` in schematics)) {
-          schematics[`@schematics/angular:${type}`] = {};
-        }
-        (schematics[`@schematics/angular:${type}`] as JsonObject).skipTests = true;
-      },
-    );
+    const schematicsWithTests = [
+      'class',
+      'component',
+      'directive',
+      'guard',
+      'interceptor',
+      'pipe',
+      'resolver',
+      'service',
+    ];
+
+    schematicsWithTests.forEach((type) => {
+      if (!(`@schematics/angular:${type}` in schematics)) {
+        schematics[`@schematics/angular:${type}`] = {};
+      }
+      (schematics[`@schematics/angular:${type}`] as JsonObject).skipTests = true;
+    });
   }
 
   if (options.strict) {
@@ -222,10 +231,6 @@ function addAppToWorkspaceFile(
   };
 
   return updateWorkspace((workspace) => {
-    if (workspace.projects.size === 0) {
-      workspace.extensions.defaultProject = options.name;
-    }
-
     workspace.projects.add({
       name: options.name,
       ...project,
@@ -262,7 +267,7 @@ export default function (options: ApplicationOptions): Rule {
     const isRootApp = options.projectRoot !== undefined;
 
     // If scoped project (i.e. "@foo/bar"), convert dir to "foo/bar".
-    let folderName = options.name.startsWith('@') ? options.name.substr(1) : options.name;
+    let folderName = options.name.startsWith('@') ? options.name.slice(1) : options.name;
     if (/[A-Z]/.test(folderName)) {
       folderName = strings.dasherize(folderName);
     }

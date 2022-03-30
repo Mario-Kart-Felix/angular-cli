@@ -1,3 +1,727 @@
+<a name="14.0.0-next.6"></a>
+
+# 14.0.0-next.6 (2022-03-16)
+
+## Breaking Changes
+
+### @angular/cli
+
+- Several changes to the `ng analytics` command syntax.
+
+- `ng analytics project <setting>` has been replaced with `ng analytics <setting>`
+- `ng analytics <setting>` has been replaced with `ng analytics <setting> --global`
+
+- Support for TypeScript 4.4 and 4.5 has been removed. Please update to TypeScript 4.6.
+
+### @angular-devkit/build-angular
+
+- `NG_BUILD_CACHE` environment variable has been removed. `cli.cache` in the workspace configuration should be used instead.
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                            |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------- |
+| [c927c038b](https://github.com/angular/angular-cli/commit/c927c038ba356732327a026fe9a4c36ed23c9dec) | fix  | remove `@types/node` from new projects |
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                                  |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------ |
+| [afafa5788](https://github.com/angular/angular-cli/commit/afafa5788f11b8727c39bb0a390300a706aba5bc) | feat | add `--global` option to `ng analytics` command              |
+| [bb550436a](https://github.com/angular/angular-cli/commit/bb550436a476d74705742a8c36f38971b346b903) | feat | add `ng analytics info` command                              |
+| [7ab22ed40](https://github.com/angular/angular-cli/commit/7ab22ed40d521e3cec29ab2d66d0289c3cdb4106) | feat | add disable/enable aliases for off/on `ng analytics` command |
+| [7fa3e6587](https://github.com/angular/angular-cli/commit/7fa3e6587955d0638929758d3c257392c242c796) | feat | support TypeScript 4.6.2                                     |
+| [9edeb8614](https://github.com/angular/angular-cli/commit/9edeb86146131878c5e8b21b6adaa24a26f12453) | fix  | add long description to `ng update`                          |
+| [a49cdfbfe](https://github.com/angular/angular-cli/commit/a49cdfbfefbdd756882be96fb61dc8a0d374b6e0) | fix  | don't prompt for analytics when running `ng analytics`       |
+| [054ae02c2](https://github.com/angular/angular-cli/commit/054ae02c2fb8eed52af76cf39a432a3770d301e4) | fix  | favor project in cwd when running architect commands         |
+| [96a0d92da](https://github.com/angular/angular-cli/commit/96a0d92da2903edfb3835ce86b3700629d6e43ad) | fix  | remove JSON serialized description from help output          |
+| [ca401255f](https://github.com/angular/angular-cli/commit/ca401255f49568cfe5f9ec6a35ea5b91c91afa70) | fix  | sort commands in help output                                 |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type     | Description                                             |
+| --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------- |
+| [b8564a638](https://github.com/angular/angular-cli/commit/b8564a638df3b6971ef2ac8fb838e6a7c910ac3b) | refactor | remove deprecated `NG_BUILD_CACHE` environment variable |
+
+## Special Thanks
+
+Alan Agius, Charles Lyding, Doug Parker and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.3.0"></a>
+
+# 13.3.0 (2022-03-16)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description            |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------- |
+| [c995ed5e8](https://github.com/angular/angular-cli/commit/c995ed5e8a8e1b20cf376f4c48c5141fd5f4548a) | feat | support TypeScript 4.6 |
+
+## Special Thanks
+
+Alan Agius and Doug Parker
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.6"></a>
+
+# 13.2.6 (2022-03-09)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                          |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------ |
+| [90a5531b1](https://github.com/angular/angular-cli/commit/90a5531b1fbe4043ab47f921ad6b858d34e7c7d0) | fix  | ignore css only chunks during naming |
+
+## Special Thanks
+
+Alan Agius, Charles Lyding and Daniele Maltese
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="14.0.0-next.5"></a>
+
+# 14.0.0-next.5 (2022-03-09)
+
+## Breaking Changes
+
+### @angular/cli
+
+- Support for Node.js v12 has been removed as it will become EOL on 2022-04-30. Please use Node.js v14.15 or later.
+
+- Several changes in the Angular CLI commands and arguments handling.
+
+- `ng help` has been removed in favour of the `—-help` option.
+- `ng —-version` has been removed in favour of `ng version` and `ng v`.
+- Deprecated camel cased arguments are no longer supported. Ex. using `—-sourceMap` instead of `—-source-map` will result in an error.
+- `ng update`, `—-migrate-only` option no longer accepts a string of migration name, instead use `—-migrate-only -—name <migration-name>`.
+- `—-help json` help has been removed.
+
+### @angular/cli
+
+| Commit                                                                                              | Type     | Description                           |
+| --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------- |
+| [4ebfe0341](https://github.com/angular/angular-cli/commit/4ebfe03415ebe4e8f1625286d1be8bd1b54d3862) | feat     | drop support for Node.js 12           |
+| [2e0493130](https://github.com/angular/angular-cli/commit/2e0493130acfe7244f7ee3ef28c961b1b04d7722) | refactor | replace command line arguments parser |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                          |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------ |
+| [e28c71597](https://github.com/angular/angular-cli/commit/e28c7159725a6d23b218dc6e0f317fc6123173f7) | fix  | ignore css only chunks during naming |
+
+## Special Thanks
+
+Alan Agius
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="14.0.0-next.4"></a>
+
+# 14.0.0-next.4 (2022-03-02)
+
+## Breaking Changes
+
+### @angular-devkit/architect-cli
+
+- camel case arguments are no longer allowed.
+
+### @angular-devkit/schematics-cli
+
+- camel case arguments are no longer allowed.
+
+### @angular-devkit/schematics-cli
+
+| Commit                                                                                              | Type     | Description                      |
+| --------------------------------------------------------------------------------------------------- | -------- | -------------------------------- |
+| [5330d52ae](https://github.com/angular/angular-cli/commit/5330d52aee32daca27fa1a2fa15712f4a408602a) | refactor | replace parser with yargs-parser |
+
+### @angular-devkit/architect-cli
+
+| Commit                                                                                              | Type     | Description                      |
+| --------------------------------------------------------------------------------------------------- | -------- | -------------------------------- |
+| [c7556b62b](https://github.com/angular/angular-cli/commit/c7556b62b7b0eab5717ed6eeab3fa7f0f1f2a873) | refactor | replace parser with yargs-parser |
+
+## Special Thanks
+
+Alan Agius, Charles Lyding and Daniele Maltese
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="14.0.0-next.3"></a>
+
+# 14.0.0-next.3 (2022-02-23)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------- |
+| [de1429308](https://github.com/angular/angular-cli/commit/de14293083826ee4a1b69b94d06a57603d3d76f9) | fix  | don't rename blocks which have a name |
+
+## Special Thanks
+
+Alan Agius, Charles Lyding, Doug Parker and Paul Gschwendtner
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.5"></a>
+
+# 13.2.5 (2022-02-23)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------- |
+| [acf1e5e4a](https://github.com/angular/angular-cli/commit/acf1e5e4a5b359be125272f7e4055208116a13d8) | fix  | don't rename blocks which have a name |
+| [7a493979c](https://github.com/angular/angular-cli/commit/7a493979ccb71e974d668fca67d75e1b194f8608) | fix  | update `terser` to `5.11.0`           |
+
+## Special Thanks
+
+Alan Agius and Paul Gschwendtner
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="14.0.0-next.2"></a>
+
+# 14.0.0-next.2 (2022-02-17)
+
+## Breaking Changes
+
+### @angular/cli
+
+- Deprecated `ng x18n` and `ng i18n-extract` commands have been removed in favor of `ng extract-i18n`.
+
+### @angular/cli
+
+| Commit                                                                                              | Type     | Description                                           |
+| --------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------- |
+| [b69ca3a7d](https://github.com/angular/angular-cli/commit/b69ca3a7d22b54fc06fbc1cfb559b2fd915f5609) | refactor | remove deprecated command aliases for `extract-i18n`. |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                            |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------- |
+| [fafbbeab6](https://github.com/angular/angular-cli/commit/fafbbeab6d9ab5e8797e373f869f365729e569c5) | fix  | update license-webpack-plugin to 4.0.2 |
+
+## Special Thanks
+
+Alan Agius, Anner Visser, Charles Lyding and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.4"></a>
+
+# 13.2.4 (2022-02-17)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                            |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------- |
+| [48c655ac9](https://github.com/angular/angular-cli/commit/48c655ac98e1d69622dd832c6a915c48e703cd8f) | fix  | update `esbuild` to `0.14.22`          |
+| [c0736ea0b](https://github.com/angular/angular-cli/commit/c0736ea0b173861bb5ceb9315d27038eb28535e1) | fix  | update license-webpack-plugin to 4.0.2 |
+
+## Special Thanks
+
+Alan Agius, Anner Visser and Charles Lyding
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="14.0.0-next.1"></a>
+
+# 14.0.0-next.1 (2022-02-09)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                              |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------------------------- |
+| [9e69331fa](https://github.com/angular/angular-cli/commit/9e69331fa61265c77d6281232bb64a2c63509290) | feat | use PNPM as package manager when `pnpm-lock.yaml` exists |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                       |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------- |
+| [7ce50002a](https://github.com/angular/angular-cli/commit/7ce50002a20373d494f08bfb36e7773b39263dba) | fix  | block Karma from starting until build is complete |
+
+### @ngtools/webpack
+
+| Commit                                                                                              | Type | Description                                            |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------ |
+| [966dd01ea](https://github.com/angular/angular-cli/commit/966dd01eab02cc10eee750c8638b5cf4b58afffe) | fix  | support locating PNPM lock file during NGCC processing |
+
+## Special Thanks
+
+Alan Agius, Derek Cormier, Doug Parker and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.3"></a>
+
+# 13.2.3 (2022-02-09)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                       |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------- |
+| [8c8377fee](https://github.com/angular/angular-cli/commit/8c8377fee4999266f4e58bf3c3091100d4393df7) | fix  | block Karma from starting until build is complete |
+
+### @ngtools/webpack
+
+| Commit                                                                                              | Type | Description                                            |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------ |
+| [1317e470e](https://github.com/angular/angular-cli/commit/1317e470ec74d1dd9dced2d0ec0022abfe921995) | fix  | support locating PNPM lock file during NGCC processing |
+
+## Special Thanks
+
+Alan Agius, Derek Cormier and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="14.0.0-next.0"></a>
+
+# 14.0.0-next.0 (2022-02-02)
+
+## Breaking Changes
+
+### @angular/cli
+
+- `--all` option from `ng update` has been removed without replacement. To update packages which don’t provide `ng update` capabilities in your workspace `package.json` use `npm update`, `yarn upgrade-interactive` or `yarn upgrade` instead.
+
+- Deprecated option `--prod` has been removed from all builders. `--configuration production`/`-c production` should be used instead if the default configuration of the builder is not configured to `production`.
+
+### @angular-devkit/build-angular
+
+- `browser` and `karma` builders `script` and `styles` options input files extensions are now validated.
+
+Valid extensions for `scripts` are:
+
+- `.js`
+- `.cjs`
+- `.mjs`
+- `.jsx`
+- `.cjsx`
+- `.mjsx`
+
+Valid extensions for `styles` are:
+
+- `.css`
+- `.less`
+- `.sass`
+- `.scss`
+- `.styl`
+
+- We now issue a build time error since importing a CSS file as an ECMA module is non standard Webpack specific feature, which is not supported by the Angular CLI.
+
+This feature was never truly supported by the Angular CLI, but has as such for visibility.
+
+- The deprecated `showCircularDependencies` browser and server builder option has been removed. The recommended method to detect circular dependencies in project code is to use either a lint rule or other external tools.
+
+### @angular-devkit/core
+
+- The below APIs have been removed without replacement. Users should leverage other Node.js or other APIs.
+- `fs` namespace
+- `clean`
+- `mapObject`
+
+### @angular-devkit/schematics
+
+- Deprecated `analytics` property has been removed from `TypedSchematicContext` interface
+
+### @ngtools/webpack
+
+- `ivy` namespace has been removed from the public API.
+
+- `ivy.AngularWebpackPlugin` -> `AngularWebpackPlugin`
+- `ivy.AngularPluginOptions` -> `AngularPluginOptions`
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                     |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------------- |
+| [7e7de6858](https://github.com/angular/angular-cli/commit/7e7de6858dd71bd461ceb0f89e29e2c57099bbcc) | feat | update Angular dependencies to use `^` as version prefix        |
+| [69ecddaa7](https://github.com/angular/angular-cli/commit/69ecddaa7d8b01aa7a9e61c403a4b9a8669e34c4) | feat | update new and existing projects compilation target to `ES2020` |
+
+### @angular/cli
+
+| Commit                                                                                              | Type     | Description                                       |
+| --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------- |
+| [d94a67353](https://github.com/angular/angular-cli/commit/d94a67353dcdaa30cf5487744a7ef151a6268f2d) | refactor | remove deprecated `--all` option from `ng update` |
+| [2fc7c73d7](https://github.com/angular/angular-cli/commit/2fc7c73d7e40dbb0a593df61eeba17c8a8f618a9) | refactor | remove deprecated `--prod` flag                   |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type     | Description                                                                    |
+| --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| [d23a168b8](https://github.com/angular/angular-cli/commit/d23a168b8d558ae9d73c8c9eed4ff199fc4d74b9) | feat     | validate file extensions for `scripts` and `styles` options                    |
+| [07e776ea3](https://github.com/angular/angular-cli/commit/07e776ea379a50a98a50cf590156c2dc1b272e78) | fix      | fail build when importing CSS files as an ECMA modules                         |
+| [0a1cd584d](https://github.com/angular/angular-cli/commit/0a1cd584d8ed00889b177f4284baec7e5427caf2) | refactor | remove deprecated `showCircularDependencies` browser and server builder option |
+
+### @angular-devkit/core
+
+| Commit                                                                                              | Type     | Description                                 |
+| --------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------- |
+| [a0c02af7e](https://github.com/angular/angular-cli/commit/a0c02af7e340bb16f4e6f523c2d835c9b18926b3) | refactor | remove deprecated fs, object and array APIs |
+
+### @angular-devkit/schematics
+
+| Commit                                                                                              | Type     | Description                            |
+| --------------------------------------------------------------------------------------------------- | -------- | -------------------------------------- |
+| [44c1e6d0d](https://github.com/angular/angular-cli/commit/44c1e6d0d2db5f2dc212d63a34ade045cb7854d5) | refactor | remove deprecated `analytics` property |
+
+### @ngtools/webpack
+
+| Commit                                                                                              | Type     | Description                     |
+| --------------------------------------------------------------------------------------------------- | -------- | ------------------------------- |
+| [9277eed1d](https://github.com/angular/angular-cli/commit/9277eed1d9603d5e258eb7ae27de527eba919482) | refactor | remove deprecated ivy namespace |
+
+## Special Thanks
+
+Alan Agius, Doug Parker and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.2"></a>
+
+# 13.2.2 (2022-02-02)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                               |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------- |
+| [cc5505cfc](https://github.com/angular/angular-cli/commit/cc5505cfcf12732fad4f85e6e76c8e4f0584c13a) | fix  | add `whatwg-url` to downlevel exclusion list              |
+| [ff54b49e7](https://github.com/angular/angular-cli/commit/ff54b49e7097cda2eb835bc8c9674f71fcc91c3c) | fix  | ensure to use content hash as filenames hashing mechanism |
+| [b0e2bb289](https://github.com/angular/angular-cli/commit/b0e2bb289050efc77478a0f50778abbec9c5a318) | perf | update `license-webpack-plugin` to `4.0.1`                |
+
+### @angular-devkit/core
+
+| Commit                                                                                              | Type | Description                                  |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------------- |
+| [c8826a973](https://github.com/angular/angular-cli/commit/c8826a9738f860e374bd65a058c6be1b02545133) | fix  | correctly resolve schema references defaults |
+
+## Special Thanks
+
+Alan Agius, Derek Cormier and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.1"></a>
+
+# 13.2.1 (2022-01-31)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                     |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------- |
+| [acd752773](https://github.com/angular/angular-cli/commit/acd752773d85e4debbc2b415c7ea369bc3d7018a) | fix  | invalid browsers version ranges |
+
+## Special Thanks
+
+Alan Agius
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.2.0"></a>
+
+# 13.2.0 (2022-01-26)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------- |
+| [41a828e20](https://github.com/angular/angular-cli/commit/41a828e2068b881f744846c3f0edbff8c62cb9ce) | fix  | updated Angular new project version to v13.2.0-next.0 |
+
+### @angular-devkit/architect
+
+| Commit                                                                                              | Type | Description                   |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------- |
+| [f2c6b2b7e](https://github.com/angular/angular-cli/commit/f2c6b2b7ec88a1b7e45884b38faa0978af1b4b74) | fix  | correctly handle ESM builders |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------------------- |
+| [cbe028e37](https://github.com/angular/angular-cli/commit/cbe028e37c8af6f2e17cbbeddc968c9410151bbb) | feat | expose i18nDuplicateTranslation option of browser and server builders |
+| [509322b62](https://github.com/angular/angular-cli/commit/509322b6214b3425bd209087ac99ee9b14edeaba) | fix  | Don't use TAILWIND_MODE=watch                                         |
+
+### @angular-devkit/build-webpack
+
+| Commit                                                                                              | Type | Description                                 |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------- |
+| [820ff2a3e](https://github.com/angular/angular-cli/commit/820ff2a3e84c5a55e23359e3a45714db83362a2a) | fix  | correctly handle ESM webpack configurations |
+
+## Special Thanks
+
+Alan Agius, Cédric Exbrayat, Derek Cormier, Doug Parker, Joey Perrott, Jordan Pittman, grant-wilson and minijus
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.1.4"></a>
+
+# 13.1.4 (2022-01-19)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------- |
+| [2f2069dba](https://github.com/angular/angular-cli/commit/2f2069dbaa70c3d4725923f1c3ccbf56b1f57576) | fix  | disable parsing `new URL` syntax                      |
+| [bddd0fb9f](https://github.com/angular/angular-cli/commit/bddd0fb9f34a8706dd1646952eed08970b9cddbe) | fix  | support ESNext as target for JavaScript optimizations |
+
+## Special Thanks
+
+Alan Agius, Derek Cormier and Doug Parker
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.1.3"></a>
+
+# 13.1.3 (2022-01-12)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                                               |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------- |
+| [4c9d72c65](https://github.com/angular/angular-cli/commit/4c9d72c659d912bd9ef4590a2e88340932a96868) | fix  | remove extra space in `Unable to find compatible package` during `ng add` |
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                      |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------- |
+| [9b07191b1](https://github.com/angular/angular-cli/commit/9b07191b1ccdcd2a6bb17686471acddd5862dcf5) | fix  | set `skipTest` flag for resolvers when using ng new --skip-tests |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                            |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------ |
+| [5b39e0eca](https://github.com/angular/angular-cli/commit/5b39e0eca6e8a3825f66ad6cd1818e551bf98f08) | fix  | automatically purge stale build cache entries          |
+| [6046e06b9](https://github.com/angular/angular-cli/commit/6046e06b926af29f89c605504f5356ec553c6390) | fix  | correctly resolve `core-js/proposals/reflect-metadata` |
+| [de68daa55](https://github.com/angular/angular-cli/commit/de68daa5581dd1f257382da16704d442b540ec41) | fix  | enable `:where` CSS pseudo-class                       |
+| [6a617ff4a](https://github.com/angular/angular-cli/commit/6a617ff4a2fe75968965dc5dcf0f3ba7bae92935) | fix  | ensure `$localize` calls are replaced in watch mode    |
+| [92b4e067b](https://github.com/angular/angular-cli/commit/92b4e067b24bdcd1bb7e40612b5355ce61e040ce) | fix  | load translations fresh start                          |
+| [d674dcd1a](https://github.com/angular/angular-cli/commit/d674dcd1af409910dd4f41ac676349aee363ebdb) | fix  | localized bundle generation fails in watch mode        |
+| [6876ad36e](https://github.com/angular/angular-cli/commit/6876ad36efaadac5c4d371cff96c9a4cfa0e3d2b) | fix  | use `contenthash` instead of `chunkhash` for chunks    |
+| [11fd02105](https://github.com/angular/angular-cli/commit/11fd02105908e155c4a9c7f87e9641127cc2f378) | fix  | websocket client only injected if required             |
+| [6ca0e41a9](https://github.com/angular/angular-cli/commit/6ca0e41a9b54aef0a8ea626be73e06d19370f3a7) | perf | update `esbuild` to `0.14.11`                          |
+
+## Special Thanks
+
+Alan Agius, Bill Barry, Derek Cormier, Elio Goettelmann, Joey Perrott, Kasper Christensen, Lukas Spirig and Zoltan Lehoczky
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="12.2.15"></a>
+
+# 12.2.15 (2022-01-12)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                         |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------- |
+| [526115fdb](https://github.com/angular/angular-cli/commit/526115fdb7d35ff01f5dbdb6027d9f5e925e4056) | fix  | updated webpack-dev-server to latest security patch |
+
+## Special Thanks
+
+Doug Parker and iRealNirmal
+
+<a name="11.2.18"></a>
+
+# 11.2.18 (2022-01-12)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                         |
+| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------- |
+| [534678450](https://github.com/angular/angular-cli/commit/534678450196a45610e88a85ee01317aa43dc788) | fix  | updated webpack-dev-server to latest security patch |
+
+## Special Thanks
+
+Doug Parker and iRealNirmal
+
+<a name="13.2.0-next.1"></a>
+
+# 13.2.0-next.1 (2021-12-15)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                           |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------- |
+| [41a828e20](https://github.com/angular/angular-cli/commit/41a828e2068b881f744846c3f0edbff8c62cb9ce) | fix  | updated Angular new project version to v13.2.0-next.0 |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                                   |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------- |
+| [0323a35b4](https://github.com/angular/angular-cli/commit/0323a35b47a4a2fd3870b09d46e3655714e50abd) | fix  | add `tailwindcss` support for version 3                       |
+| [471930007](https://github.com/angular/angular-cli/commit/471930007cb9cd26264eab483fdfd1f5b4db6641) | fix  | display FS cache information when `verbose` option is used    |
+| [f1d2873ca](https://github.com/angular/angular-cli/commit/f1d2873ca7ee337748366d04878514c2c27a72a2) | fix  | only extract CSS styles when are specified in `styles` option |
+
+### @ngtools/webpack
+
+| Commit                                                                                              | Type | Description                                            |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------ |
+| [b03b9eefe](https://github.com/angular/angular-cli/commit/b03b9eefeac77b93931803de208118e3a6c5a928) | perf | reduce redudant module rebuilds when cache is restored |
+
+## Special Thanks
+
+Alan Agius, Cédric Exbrayat, Derek Cormier and Doug Parker
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.1.2"></a>
+
+# 13.1.2 (2021-12-15)
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                                   |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------- |
+| [1ddbd75ae](https://github.com/angular/angular-cli/commit/1ddbd75ae200c14b5f33556bd6d5ae6b7722d14e) | fix  | add `tailwindcss` support for version 3                       |
+| [adf925c07](https://github.com/angular/angular-cli/commit/adf925c0755b6e78a57932becdb7b7a764afb9e6) | fix  | display FS cache information when `verbose` option is used    |
+| [09c3826c9](https://github.com/angular/angular-cli/commit/09c3826c9d9128a6b520d0fe8da3cb466d18cddc) | fix  | only extract CSS styles when are specified in `styles` option |
+
+### @ngtools/webpack
+
+| Commit                                                                                              | Type | Description                                            |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------ |
+| [f31d7f79d](https://github.com/angular/angular-cli/commit/f31d7f79dfa8f997fecdcfec1ebc6cfbe657f3fb) | perf | reduce redudant module rebuilds when cache is restored |
+
+## Special Thanks
+
+Alan Agius, Derek Cormier and Doug Parker
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="11.2.17"></a>
+
+# 11.2.17 (2021-12-16)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                                    |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------------------------------- |
+| [1efff8f82](https://github.com/angular/angular-cli/commit/1efff8f82df38b7485f8a8dcdd5bfea5a457c6a1) | fix  | exclude deprecated packages with removal migration from update |
+
+## Special Thanks
+
+Alan Agius and Doug Parker
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="11.2.16"></a>
+
+# 11.2.16 (2021-12-15)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                                                               |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------- |
+| [f456b0962](https://github.com/angular/angular-cli/commit/f456b0962b9f339759bc86c092256f68d68d9ecf) | fix  | error when updating Angular packages across multi-major migrations                        |
+| [886d2511e](https://github.com/angular/angular-cli/commit/886d2511e292b687acce1ac4c6924f992494d14f) | fix  | logic which determines which temp version of the CLI is to be download during `ng update` |
+| [776d1210a](https://github.com/angular/angular-cli/commit/776d1210a9e62bf2531d977138f49f93820a8b87) | fix  | update `ng update` output for Angular packages                                            |
+
+## Special Thanks
+
+Alan Agius and Doug Parker
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="10.2.4"></a>
+
+# 10.2.4 (2021-12-15)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                                                               |
+| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------- |
+| [745d77728](https://github.com/angular/angular-cli/commit/745d777288a5ae0e79b4ecdf7b8483f242ba8e66) | fix  | error when updating Angular packages across multi-major migrations                        |
+| [460ea21b5](https://github.com/angular/angular-cli/commit/460ea21b5d4b8759a3f7457b885110022dd21dfc) | fix  | logic which determines which temp version of the CLI is to be download during `ng update` |
+| [03da12899](https://github.com/angular/angular-cli/commit/03da1289996790ae574a49bb46123c74417a97c2) | fix  | update `ng update` output for Angular packages                                            |
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                  |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------ |
+| [d6582d489](https://github.com/angular/angular-cli/commit/d6582d48944f7bf169f3902e4c19186a6751f473) | fix  | change `karma-jasmine-html-reporter` dependency to use tilde |
+
+## Special Thanks
+
+Alan Agius, Charles Lyding, Doug Parker and Joey Perrott
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.1.1"></a>
+
+# 13.1.1 (2021-12-10)
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                    |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------- |
+| [a315b968a](https://github.com/angular/angular-cli/commit/a315b968a36e6aae990e52d9a18673fef9b5fda6) | fix  | updated Angular new project version to v13.1.0 |
+
+## Special Thanks
+
+Alan Agius, Cédric Exbrayat and Derek Cormier
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="13.1.0"></a>
+
+# 13.1.0 (2021-12-09)
+
+### @angular/cli
+
+| Commit                                                                                              | Type | Description                                                        |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------ |
+| [56f802b7d](https://github.com/angular/angular-cli/commit/56f802b7dd26bfc774b6b00982a1dbbe0bafddd0) | feat | ask to install angular-eslint when running ng lint in new projects |
+| [ecd9fb5c7](https://github.com/angular/angular-cli/commit/ecd9fb5c774b6301348c4514da04d58ae8903d06) | feat | provide more detailed error for not found builder                  |
+| [0b6071af3](https://github.com/angular/angular-cli/commit/0b6071af3a51e7d3f38a661bd4e0a3c3e81aff2f) | fix  | `ng doc` does open browser on Windows                              |
+
+### @schematics/angular
+
+| Commit                                                                                              | Type | Description                                                |
+| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------- |
+| [d5d9f042f](https://github.com/angular/angular-cli/commit/d5d9f042f2ea42573b7ff4fab90cab85d0c5ec0b) | feat | add VS Code configurations when generating a new workspace |
+| [f95cc8281](https://github.com/angular/angular-cli/commit/f95cc8281a64bd9ac19e0fa5d92cb0a6ee8c32ec) | feat | generate new projects using TypeScript 4.5                 |
+| [21809e14c](https://github.com/angular/angular-cli/commit/21809e14cd5c666c82fdaebc9e601341dfb76d0a) | feat | loosen project name validation                             |
+
+### @angular-devkit/schematics-cli
+
+| Commit                                                                                              | Type | Description                                |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------ |
+| [339bab06c](https://github.com/angular/angular-cli/commit/339bab06cc25863571acb09cb3e877fed14ca2f9) | feat | generate new projects using TypeScript 4.5 |
+
+### @angular-devkit/build-angular
+
+| Commit                                                                                              | Type | Description                                                                     |
+| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------- |
+| [bc8563760](https://github.com/angular/angular-cli/commit/bc856376039287cf5fb6135ca5da65a9000f5664) | feat | add estimated transfer size to build output report                              |
+| [bc17cf0cd](https://github.com/angular/angular-cli/commit/bc17cf0cdd02bf50758e510756a26e6e6ca32d14) | feat | colorize file raw sizes based on failing budgets                                |
+| [3c681b68d](https://github.com/angular/angular-cli/commit/3c681b68d7a32f1cfaf3feee6b2e02cc6e0f0568) | feat | set `dir` attribute when using localization                                     |
+| [6d0f99a2d](https://github.com/angular/angular-cli/commit/6d0f99a2deef957c15836c172b9f68f716f836a4) | feat | support JSON comments in dev-server proxy configuration file                    |
+| [9300545e6](https://github.com/angular/angular-cli/commit/9300545e6148b4548cc02bb6a311a2f0e2bb79c5) | feat | watch i18n translation files with dev server                                    |
+| [9bacba342](https://github.com/angular/angular-cli/commit/9bacba3420cda7897091522415a8d55cf1b75106) | fix  | differentiate components and global styles using file query instead of filename |
+| [7408511da](https://github.com/angular/angular-cli/commit/7408511da555f37560ca7e3b536e15dfc8f6a1e5) | fix  | display cleaner errors                                                          |
+| [d55fc62ef](https://github.com/angular/angular-cli/commit/d55fc62ef2f8bc7a6f1190f56f8e8b64c9195263) | fix  | fallback to use language ID to set the `dir` attribute                          |
+| [4c288b8bd](https://github.com/angular/angular-cli/commit/4c288b8bd28e7215887aa52025c4fa41fcf7bc01) | fix  | lazy modules bundle budgets                                                     |
+| [562dc6a89](https://github.com/angular/angular-cli/commit/562dc6a8924826509d9012b2c0fe61c089077399) | fix  | prefer ES2015 entrypoints when application targets ES2019 or lower              |
+| [ac66e400c](https://github.com/angular/angular-cli/commit/ac66e400cddc81bde46949d1abe4560185dfbedb) | fix  | Sass compilation in StackBlitz webcontainers                                    |
+| [e1bac5bbb](https://github.com/angular/angular-cli/commit/e1bac5bbb36f391b89445ba61abe561c75746f30) | fix  | update Angular peer dependencies to v13.1 prerelease                            |
+| [789ddfaeb](https://github.com/angular/angular-cli/commit/789ddfaeb0fcbc9aab1581384b88c3618e606c4b) | perf | disable webpack backwards compatible APIs                                       |
+
+### @ngtools/webpack
+
+| Commit                                                                                              | Type | Description                                              |
+| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------------------------- |
+| [5402f99f8](https://github.com/angular/angular-cli/commit/5402f99f8ad20e0a57456a416a992415fc6332bd) | fix  | add `cjs` and `mjs` to passthrough files                 |
+| [10d4ede2d](https://github.com/angular/angular-cli/commit/10d4ede2de42dfc302dcb4c5790274290170568d) | fix  | handle promise rejection during Angular program analyzes |
+
+## Special Thanks
+
+Alan Agius, Charles Lyding, Doug Parker, Ferdinand Malcher, Joey Perrott and Ruslan Lekhman
+
+<!-- CHANGELOG SPLIT MARKER -->
+
 <a name="12.2.14"></a>
 
 # 12.2.14 (2021-12-07)
@@ -14,50 +738,6 @@
 ## Special Thanks
 
 Alan Agius and Doug Parker
-
-<!-- CHANGELOG SPLIT MARKER -->
-
-<a name="13.1.0-next.3"></a>
-
-# 13.1.0-next.3 (2021-12-01)
-
-### @angular/cli
-
-| Commit                                                                                              | Type | Description                                                                               |
-| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------- |
-| [56f802b7d](https://github.com/angular/angular-cli/commit/56f802b7dd26bfc774b6b00982a1dbbe0bafddd0) | feat | ask to install angular-eslint when running ng lint in new projects                        |
-| [b9cd68f69](https://github.com/angular/angular-cli/commit/b9cd68f691e529708859a0bedb3db0a563943a72) | fix  | exit with a non-zero error code when migration fails during `ng update`                   |
-| [1e9e890bb](https://github.com/angular/angular-cli/commit/1e9e890bb08ef2eea1ae9578c711922d4c3ac190) | fix  | logic which determines which temp version of the CLI is to be download during `ng update` |
-
-### @schematics/angular
-
-| Commit                                                                                              | Type | Description                                                |
-| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------- |
-| [d5d9f042f](https://github.com/angular/angular-cli/commit/d5d9f042f2ea42573b7ff4fab90cab85d0c5ec0b) | feat | add VS Code configurations when generating a new workspace |
-| [37a723945](https://github.com/angular/angular-cli/commit/37a723945879a2c8884ec73276681ee49a6e36a8) | fix  | address eslint linting failures in `test.ts`               |
-
-### @angular-devkit/build-angular
-
-| Commit                                                                                              | Type | Description                                                                                                      |
-| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------- |
-| [bc17cf0cd](https://github.com/angular/angular-cli/commit/bc17cf0cdd02bf50758e510756a26e6e6ca32d14) | feat | colorize file raw sizes based on failing budgets                                                                 |
-| [3c681b68d](https://github.com/angular/angular-cli/commit/3c681b68d7a32f1cfaf3feee6b2e02cc6e0f0568) | feat | set `dir` attribute when using localization                                                                      |
-| [9300545e6](https://github.com/angular/angular-cli/commit/9300545e6148b4548cc02bb6a311a2f0e2bb79c5) | feat | watch i18n translation files with dev server                                                                     |
-| [52c6c3df3](https://github.com/angular/angular-cli/commit/52c6c3df33929d79c233282f6851e2be2f04c343) | fix  | correctly extract messages when using cached build ([#22266](https://github.com/angular/angular-cli/pull/22266)) |
-| [7408511da](https://github.com/angular/angular-cli/commit/7408511da555f37560ca7e3b536e15dfc8f6a1e5) | fix  | display cleaner errors                                                                                           |
-| [6bdc26c60](https://github.com/angular/angular-cli/commit/6bdc26c6091c604f6139e349e30db25a8768c646) | fix  | don't watch nested `node_modules` when polling is enabled                                                        |
-| [4c288b8bd](https://github.com/angular/angular-cli/commit/4c288b8bd28e7215887aa52025c4fa41fcf7bc01) | fix  | lazy modules bundle budgets                                                                                      |
-| [5805c7859](https://github.com/angular/angular-cli/commit/5805c7859981212619ced49694374a2c812f2148) | fix  | transform remapped sourcemap into a plain object                                                                 |
-
-### @ngtools/webpack
-
-| Commit                                                                                              | Type | Description                                               |
-| --------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------- |
-| [b3f71c51b](https://github.com/angular/angular-cli/commit/b3f71c51bffba35373259ab1283c8de3b7c1788e) | fix  | JIT mode CommonJS accessing inexistent `default` property |
-
-## Special Thanks
-
-Alan Agius, Billy Lando, Charles Lyding, David-Emmanuel DIVERNOIS, Derek Cormier and Doug Parker
 
 <!-- CHANGELOG SPLIT MARKER -->
 
@@ -98,36 +778,6 @@ Alan Agius, Billy Lando, David-Emmanuel DIVERNOIS and Derek Cormier
 
 <!-- CHANGELOG SPLIT MARKER -->
 
-<a name="13.1.0-next.2"></a>
-
-# 13.1.0-next.2 (2021-11-17)
-
-### @angular/cli
-
-| Commit                                                                                              | Type | Description                                       |
-| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------- |
-| [ecd9fb5c7](https://github.com/angular/angular-cli/commit/ecd9fb5c774b6301348c4514da04d58ae8903d06) | feat | provide more detailed error for not found builder |
-
-### @schematics/angular
-
-| Commit                                                                                              | Type | Description                    |
-| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------ |
-| [21809e14c](https://github.com/angular/angular-cli/commit/21809e14cd5c666c82fdaebc9e601341dfb76d0a) | feat | loosen project name validation |
-
-### @angular-devkit/build-angular
-
-| Commit                                                                                              | Type | Description                                                  |
-| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------------ |
-| [bc8563760](https://github.com/angular/angular-cli/commit/bc856376039287cf5fb6135ca5da65a9000f5664) | feat | add estimated transfer size to build output report           |
-| [6d0f99a2d](https://github.com/angular/angular-cli/commit/6d0f99a2deef957c15836c172b9f68f716f836a4) | feat | support JSON comments in dev-server proxy configuration file |
-| [789ddfaeb](https://github.com/angular/angular-cli/commit/789ddfaeb0fcbc9aab1581384b88c3618e606c4b) | perf | disable webpack backwards compatible APIs                    |
-
-## Special Thanks
-
-Alan Agius, Charles Lyding, Doug Parker, Joey Perrott and Krzysztof Platis
-
-<!-- CHANGELOG SPLIT MARKER -->
-
 <a name="13.0.3"></a>
 
 # 13.0.3 (2021-11-17)
@@ -135,41 +785,6 @@ Alan Agius, Charles Lyding, Doug Parker, Joey Perrott and Krzysztof Platis
 ## Special Thanks
 
 Alan Agius, Joey Perrott and Krzysztof Platis
-
-<!-- CHANGELOG SPLIT MARKER -->
-
-<a name="13.1.0-next.1"></a>
-
-# 13.1.0-next.1 (2021-11-10)
-
-### @angular/cli
-
-| Commit                                                                                              | Type | Description                                            |
-| --------------------------------------------------------------------------------------------------- | ---- | ------------------------------------------------------ |
-| [4a5ca162c](https://github.com/angular/angular-cli/commit/4a5ca162c36a4ed9292ae2bf7e9eb8c31cadd349) | fix  | avoid redirecting @angular/core in Angular migrations  |
-| [b7b1325a6](https://github.com/angular/angular-cli/commit/b7b1325a67a291c32ffcaf378f408380d38549bd) | fix  | favor ng-update `packageGroupName` in ng update output |
-
-### @schematics/angular
-
-| Commit                                                                                              | Type | Description                                              |
-| --------------------------------------------------------------------------------------------------- | ---- | -------------------------------------------------------- |
-| [e9d2d98e8](https://github.com/angular/angular-cli/commit/e9d2d98e89936f2e56e175094f20b44b3f3e4b20) | fix  | migrate ng-packagr configurations in package.json        |
-| [950b430c0](https://github.com/angular/angular-cli/commit/950b430c01d0f567180fc481cbb849389dc28ef2) | fix  | show warning when migrating ng-packagr JS configurations |
-| [cf67f2629](https://github.com/angular/angular-cli/commit/cf67f2629d9c5307669ef2dac671210e63abd116) | fix  | updated Angular new project version to v13.0.0           |
-
-### @angular-devkit/build-angular
-
-| Commit                                                                                              | Type | Description                                                             |
-| --------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------- |
-| [47fd128a0](https://github.com/angular/angular-cli/commit/47fd128a06e7c6305b5f15f6fcc8098ae97e77e5) | fix  | don't restore `input` of type `file` during HMR                         |
-| [3a89358d3](https://github.com/angular/angular-cli/commit/3a89358d3318aa736637cea1cbdb55534d2b531b) | fix  | don't show `[NG HMR] Unknown input type` when restoring file type input |
-| [5990ed91c](https://github.com/angular/angular-cli/commit/5990ed91cd90535b5ff160416d5b2886b0f1d78f) | fix  | improve sourcemap fidelity during code-coverage                         |
-| [b3e588801](https://github.com/angular/angular-cli/commit/b3e588801da324d84eb683eab4149274d58338e2) | fix  | suppress "@charset" must be the first rule in the file warning          |
-| [e1bac5bbb](https://github.com/angular/angular-cli/commit/e1bac5bbb36f391b89445ba61abe561c75746f30) | fix  | update Angular peer dependencies to v13.1 prerelease                    |
-
-## Special Thanks
-
-Alan Agius, Charles Lyding, Doug Parker, Joey Perrott and Paul Gschwendtner
 
 <!-- CHANGELOG SPLIT MARKER -->
 
@@ -220,22 +835,6 @@ Alan Agius, Charles Lyding, Joey Perrott and Paul Gschwendtner
 ## Special Thanks
 
 Charles Lyding and Joey Perrott
-
-<!-- CHANGELOG SPLIT MARKER -->
-
-<a name="13.1.0-next.0"></a>
-
-# 13.1.0-next.0 (2021-11-03)
-
-### @ngtools/webpack
-
-| Commit                                                                                              | Type | Description                              |
-| --------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------- |
-| [5402f99f8](https://github.com/angular/angular-cli/commit/5402f99f8ad20e0a57456a416a992415fc6332bd) | fix  | add `cjs` and `mjs` to passthrough files |
-
-## Special Thanks
-
-Alan Agius, Charles Lyding, Doug Parker, Joey Perrott and Ruslan Lekhman
 
 <!-- CHANGELOG SPLIT MARKER -->
 

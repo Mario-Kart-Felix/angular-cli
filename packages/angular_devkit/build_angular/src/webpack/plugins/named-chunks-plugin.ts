@@ -26,6 +26,12 @@ export class NamedChunksPlugin {
           return;
         }
 
+        if ([...chunk.files.values()].every((f) => f.endsWith('.css'))) {
+          // If all chunk files are CSS files skip.
+          // This happens when using `import('./styles.css')` in a lazy loaded module.
+          return undefined;
+        }
+
         const name = this.generateName(chunk);
         if (name) {
           chunk.name = name;
@@ -39,6 +45,11 @@ export class NamedChunksPlugin {
       const [block] = group.getBlocks();
       if (!(block instanceof AsyncDependenciesBlock)) {
         continue;
+      }
+
+      if (block.groupOptions.name) {
+        // Ignore groups which have been named already.
+        return undefined;
       }
 
       for (const dependency of block.dependencies) {

@@ -8,7 +8,7 @@
 
 import { BuilderContext, BuilderOutput, createBuilder } from '@angular-devkit/architect';
 import { EmittedFiles, WebpackLoggingCallback, runWebpack } from '@angular-devkit/build-webpack';
-import { getSystemPath, json, logging, normalize, resolve } from '@angular-devkit/core';
+import { logging, normalize } from '@angular-devkit/core';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Observable, from } from 'rxjs';
@@ -39,6 +39,7 @@ import {
 import { normalizeCacheOptions } from '../../utils/normalize-cache';
 import { ensureOutputPaths } from '../../utils/output-paths';
 import { generateEntryPoints } from '../../utils/package-chunk-sort';
+import { purgeStaleBuildCache } from '../../utils/purge-cache';
 import { augmentAppWithServiceWorker } from '../../utils/service-worker';
 import { Spinner } from '../../utils/spinner';
 import { getSupportedBrowsers } from '../../utils/supported-browsers';
@@ -63,15 +64,20 @@ import { Schema as BrowserBuilderSchema } from './schema';
 /**
  * @experimental Direct usage of this type is considered experimental.
  */
-export type BrowserBuilderOutput = json.JsonObject &
-  BuilderOutput & {
-    baseOutputPath: string;
-    outputPaths: string[];
-    /**
-     * @deprecated in version 9. Use 'outputPaths' instead.
-     */
-    outputPath: string;
-  };
+export type BrowserBuilderOutput = BuilderOutput & {
+  baseOutputPath: string;
+  outputPaths: string[];
+  /**
+   * @deprecated in version 9. Use 'outputPaths' instead.
+   */
+  outputPath: string;
+};
+
+/**
+ * Maximum time in milliseconds for single build/rebuild
+ * This accounts for CI variability.
+ */
+export const BUILD_TIMEOUT = 30_000;
 
 async function initialize(
   options: BrowserBuilderSchema,
@@ -135,8 +141,6 @@ export function buildWebpackBrowser(
     indexHtml?: IndexHtmlTransform;
   } = {},
 ): Observable<BrowserBuilderOutput> {
-  const root = normalize(context.workspaceRoot);
-
   const projectName = context.target?.project;
   if (!projectName) {
     throw new Error('The builder requires a target.');
@@ -150,17 +154,17 @@ export function buildWebpackBrowser(
 
   return from(context.getProjectMetadata(projectName)).pipe(
     switchMap(async (projectMetadata) => {
-      const sysProjectRoot = getSystemPath(
-        resolve(
-          normalize(context.workspaceRoot),
-          normalize((projectMetadata.root as string) ?? ''),
-        ),
-      );
+      // Purge old build disk cache.
+      await purgeStaleBuildCache(context);
 
-      checkInternetExplorerSupport(sysProjectRoot, context.logger);
+      // Initialize builder
+      const initialization = await initialize(options, context, transforms.webpackConfiguration);
+
+      // Check and warn about IE browser support
+      checkInternetExplorerSupport(initialization.projectRoot, context.logger);
 
       return {
-        ...(await initialize(options, context, transforms.webpackConfiguration)),
+        ...initialization,
         cacheOptions: normalizeCacheOptions(projectMetadata, context.workspaceRoot),
       };
     }),
@@ -264,7 +268,7 @@ export function buildWebpackBrowser(
                     await copyAssets(
                       normalizeAssetPatterns(
                         options.assets,
-                        root,
+                        normalize(context.workspaceRoot),
                         normalize(projectRoot),
                         projectSourceRoot === undefined ? undefined : normalize(projectSourceRoot),
                       ),
@@ -431,4 +435,4 @@ function checkInternetExplorerSupport(projectRoot: string, logger: logging.Logge
   }
 }
 
-export default createBuilder<json.JsonObject & BrowserBuilderSchema>(buildWebpackBrowser);
+export default createBuilder<BrowserBuilderSchema>(buildWebpackBrowser);

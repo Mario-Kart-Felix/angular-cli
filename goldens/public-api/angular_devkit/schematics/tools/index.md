@@ -6,7 +6,6 @@
 
 /// <reference types="node" />
 
-import { analytics } from '@angular-devkit/core';
 import { BaseException } from '@angular-devkit/core';
 import { JsonObject } from '@angular-devkit/core';
 import { logging } from '@angular-devkit/core';
@@ -112,7 +111,7 @@ export abstract class FileSystemEngineHostBase implements FileSystemEngineHost_2
     // (undocumented)
     hasTaskExecutor(name: string): boolean;
     // (undocumented)
-    listSchematicNames(collection: FileSystemCollectionDesc): string[];
+    listSchematicNames(collection: FileSystemCollectionDesc, includeHidden?: boolean): string[];
     // (undocumented)
     registerContextTransform(t: ContextTransform): void;
     // (undocumented)

@@ -15,10 +15,12 @@ import { ScriptTarget } from 'typescript';
 import type { Configuration, WebpackOptionsNormalized } from 'webpack';
 import {
   AssetPatternClass,
-  ExtraEntryPoint,
-  ExtraEntryPointClass,
+  OutputHashing,
+  ScriptElement,
+  StyleElement,
 } from '../../builders/browser/schema';
 import { WebpackConfigOptions } from '../../utils/build-options';
+import { VERSION } from '../../utils/package-version';
 
 export interface HashFormat {
   chunk: string;
@@ -27,31 +29,46 @@ export interface HashFormat {
   script: string;
 }
 
-export function getOutputHashFormat(option: string, length = 20): HashFormat {
-  const hashFormats: { [option: string]: HashFormat } = {
-    none: { chunk: '', extract: '', file: '', script: '' },
-    media: { chunk: '', extract: '', file: `.[hash:${length}]`, script: '' },
-    bundles: {
-      chunk: `.[chunkhash:${length}]`,
-      extract: `.[contenthash:${length}]`,
-      file: '',
-      script: `.[hash:${length}]`,
-    },
-    all: {
-      chunk: `.[chunkhash:${length}]`,
-      extract: `.[contenthash:${length}]`,
-      file: `.[hash:${length}]`,
-      script: `.[hash:${length}]`,
-    },
-  };
+export function getOutputHashFormat(outputHashing = OutputHashing.None, length = 20): HashFormat {
+  const hashTemplate = `.[contenthash:${length}]`;
 
-  return hashFormats[option] || hashFormats['none'];
+  switch (outputHashing) {
+    case 'media':
+      return {
+        chunk: '',
+        extract: '',
+        file: hashTemplate,
+        script: '',
+      };
+    case 'bundles':
+      return {
+        chunk: hashTemplate,
+        extract: hashTemplate,
+        file: '',
+        script: hashTemplate,
+      };
+    case 'all':
+      return {
+        chunk: hashTemplate,
+        extract: hashTemplate,
+        file: hashTemplate,
+        script: hashTemplate,
+      };
+    case 'none':
+    default:
+      return {
+        chunk: '',
+        extract: '',
+        file: '',
+        script: '',
+      };
+  }
 }
 
-export type NormalizedEntryPoint = Required<ExtraEntryPointClass>;
+export type NormalizedEntryPoint = Required<Exclude<ScriptElement | StyleElement, string>>;
 
 export function normalizeExtraEntryPoints(
-  extraEntryPoints: ExtraEntryPoint[],
+  extraEntryPoints: (ScriptElement | StyleElement)[],
   defaultBundleName: string,
 ): NormalizedEntryPoint[] {
   return extraEntryPoints.map((entry) => {
@@ -122,10 +139,9 @@ export function getCacheSettings(
 ): WebpackOptionsNormalized['cache'] {
   const { enabled, path: cacheDirectory } = wco.buildOptions.cache;
   if (enabled) {
-    const packageVersion = require('../../../package.json').version;
-
     return {
       type: 'filesystem',
+      profile: wco.buildOptions.verbose,
       cacheDirectory: path.join(cacheDirectory, 'angular-webpack'),
       maxMemoryGenerations: 1,
       // We use the versions and build options as the cache name. The Webpack configurations are too
@@ -133,7 +149,7 @@ export function getCacheSettings(
       // None of which are "named".
       name: createHash('sha1')
         .update(angularVersion)
-        .update(packageVersion)
+        .update(VERSION)
         .update(wco.projectRoot)
         .update(JSON.stringify(wco.tsConfig))
         .update(
@@ -160,7 +176,7 @@ export function getCacheSettings(
 
 export function globalScriptsByBundleName(
   root: string,
-  scripts: ExtraEntryPoint[],
+  scripts: ScriptElement[],
 ): { bundleName: string; inject: boolean; paths: string[] }[] {
   return normalizeExtraEntryPoints(scripts, 'scripts').reduce(
     (prev: { bundleName: string; paths: string[]; inject: boolean }[], curr) => {
